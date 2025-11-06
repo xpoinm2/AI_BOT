@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from collections import OrderedDict, defaultdict
 from logging.handlers import RotatingFileHandler
-from typing import Dict, Optional, Any, List, Tuple, Set
+from typing import Dict, Optional, Any, List, Tuple, Set, TYPE_CHECKING
 from io import BytesIO
 from telethon import TelegramClient, events, Button, functions, helpers, types
 from OpenAi_helper import gpt_answer, gpt_answer_variants
@@ -34,6 +34,9 @@ try:  # Telethon <= 1.33.1
 except ImportError:  # Telethon >= 1.34 moved/renamed the error
     from telethon.errors.rpcerrorlist import QueryIdInvalidError  # type: ignore[attr-defined]
 from telethon.tl.types import ReactionEmoji, User
+
+if TYPE_CHECKING:
+    from telethon.tl.custom.inlinebuilder import InlineBuilder
 from telethon.tl.custom import Message
 try:  # Telethon <= 1.33.1
     from telethon.errors import AuthKeyDuplicatedError  # type: ignore[attr-defined]
@@ -782,6 +785,16 @@ LIBRARY_INLINE_QUERY_PREFIXES = {"library", "lib", "files"}
 LIBRARY_INLINE_RESULT_LIMIT = 25
 
 
+@dataclass
+class InlineArticle:
+    """Minimal representation of an inline article result."""
+
+    id: str
+    title: str
+    description: str
+    text: str
+
+
 def library_inline_button(file_type: str, label: str) -> Button:
     """Create an inline switch button for library previews."""
 
@@ -791,6 +804,23 @@ def library_inline_button(file_type: str, label: str) -> Button:
     # behaviour by opening the inline query in the current chat instead of
     # redirecting the user to a different dialog.
     return Button.switch_inline(label, query=query, same_peer=True)
+
+
+async def _render_inline_articles(
+    builder: "InlineBuilder", articles: List[InlineArticle]
+) -> List[Any]:
+    results = []
+    for article in articles:
+        kwargs = {
+            "title": article.title,
+            "text": article.text,
+            "id": article.id,
+            "link_preview": False,
+        }
+        if article.description:
+            kwargs["description"] = article.description
+        results.append(await builder.article(**kwargs))
+    return results
 
 
 def _inline_file_metadata(path: str) -> Tuple[str, str]:
@@ -814,7 +844,7 @@ def _build_library_file_results(
     search_term: str,
     *,
     preloaded: Optional[List[str]] = None,
-) -> List[types.InlineQueryResult]:
+) -> List[InlineArticle]:
     all_files = list(preloaded) if preloaded is not None else list_templates_by_type(owner_id, file_type)
 
     normalized_term = " ".join(search_term.split()) if search_term else ""
@@ -851,14 +881,12 @@ def _build_library_file_results(
     message_text_lines.append("")
     message_text_lines.append("Используйте меню файлов бота для управления этими шаблонами.")
 
-    results: List[types.InlineQueryResult] = [
-        types.InlineQueryResultArticle(
+    results: List[InlineArticle] = [
+        InlineArticle(
             id=f"{file_type}:summary",
             title=summary_title,
             description=description,
-            input_message_content=types.InputTextMessageContent(
-                message_text="\n".join(message_text_lines)
-            ),
+            text="\n".join(message_text_lines),
         )
     ]
 
@@ -884,20 +912,18 @@ def _build_library_file_results(
         message_lines.append("Чтобы отправить этот файл пользователю, откройте меню файлов или используйте шаблоны ответа.")
 
         results.append(
-            types.InlineQueryResultArticle(
+            InlineArticle(
                 id=f"{file_type}:{idx}",
                 title=name,
                 description=description_text,
-                input_message_content=types.InputTextMessageContent(
-                    message_text="\n".join(message_lines)
-                ),
+                text="\n".join(message_lines),
             )
         )
 
     return results
 
 
-def _build_library_overview_results(owner_id: int) -> List[types.InlineQueryResult]:
+def _build_library_overview_results(owner_id: int) -> List[InlineArticle]:
     files_by_type = {ft: list_templates_by_type(owner_id, ft) for ft in FILE_TYPE_LABELS}
     total = sum(len(items) for items in files_by_type.values())
 
@@ -907,14 +933,12 @@ def _build_library_overview_results(owner_id: int) -> List[types.InlineQueryResu
     intro_lines.append("")
     intro_lines.append("Выберите категорию ниже, чтобы увидеть список конкретных файлов.")
 
-    results: List[types.InlineQueryResult] = [
-        types.InlineQueryResultArticle(
+    results: List[InlineArticle] = [
+        InlineArticle(
             id="overview:summary",
             title=f"Всего файлов: {total}",
             description="Разбивка по категориям",
-            input_message_content=types.InputTextMessageContent(
-                message_text="\n".join(intro_lines)
-            ),
+            text="\n".join(intro_lines),
         )
     ]
 
@@ -924,7 +948,7 @@ def _build_library_overview_results(owner_id: int) -> List[types.InlineQueryResu
     return results
 
 
-def _build_library_unknown_results(query: str) -> List[types.InlineQueryResult]:
+def _build_library_unknown_results(query: str) -> List[InlineArticle]:
     available = ", ".join(f"{key}" for key in FILE_TYPE_LABELS.keys())
     text_lines = [
         f"Категория \"{query}\" не найдена.",
@@ -935,13 +959,11 @@ def _build_library_unknown_results(query: str) -> List[types.InlineQueryResult]:
     text_lines.append("Используйте, например, запрос `library paste`.")
 
     return [
-        types.InlineQueryResultArticle(
+        InlineArticle(
             id="unknown",
             title="Категория не найдена",
             description=f"Доступные: {available}",
-            input_message_content=types.InputTextMessageContent(
-                message_text="\n".join(text_lines)
-            ),
+            text="\n".join(text_lines),
         )
     ]
 
@@ -3606,7 +3628,9 @@ async def on_inline_query(ev):
         parts = parts[1:]
 
     if not parts:
-        results = _build_library_overview_results(user_id)
+        results = await _render_inline_articles(
+            ev.builder, _build_library_overview_results(user_id)
+        )
         await ev.answer(results, cache_time=0)
         return
 
@@ -3614,11 +3638,20 @@ async def on_inline_query(ev):
     remainder = " ".join(parts[1:]) if len(parts) > 1 else ""
 
     if category in FILE_TYPE_LABELS:
-        results = _build_library_file_results(user_id, category, remainder)
+        results = await _render_inline_articles(
+            ev.builder,
+            _build_library_file_results(user_id, category, remainder),
+        )
     elif category in {"all", "overview"}:
-        results = _build_library_overview_results(user_id)
+        results = await _render_inline_articles(
+            ev.builder,
+            _build_library_overview_results(user_id),
+        )
     else:
-        results = _build_library_unknown_results(category)
+        results = await _render_inline_articles(
+            ev.builder,
+            _build_library_unknown_results(category),
+        )
 
     await ev.answer(results, cache_time=0)
 
