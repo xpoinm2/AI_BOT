@@ -786,7 +786,11 @@ def library_inline_button(file_type: str, label: str) -> Button:
     """Create an inline switch button for library previews."""
 
     query = " ".join(("library", file_type)).strip()
-    return Button.switch_inline_current(label, query=query)
+    # ``Button.switch_inline_current`` was removed in recent Telethon releases.
+    # ``Button.switch_inline`` with ``same_peer=True`` replicates the previous
+    # behaviour by opening the inline query in the current chat instead of
+    # redirecting the user to a different dialog.
+    return Button.switch_inline(label, query=query, same_peer=True)
 
 
 def _inline_file_metadata(path: str) -> Tuple[str, str]:

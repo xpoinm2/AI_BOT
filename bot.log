@@ -235,3 +235,89 @@
 2025-11-07 00:58:24,633 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
 2025-11-07 00:58:26,298 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
 2025-11-07 00:58:26,511 [INFO] mgrbot: Startup notification suppressed to avoid spamming users.
+2025-11-07 01:36:23,990 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-07 01:36:27,177 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-11-07 01:36:30,030 [INFO] telethon.client.users: Phone migrated to 5
+2025-11-07 01:36:30,030 [INFO] telethon.client.telegrambaseclient: Reconnecting to new data center 5
+2025-11-07 01:36:30,562 [INFO] telethon.network.mtprotosender: Disconnecting from 149.154.167.51:443/_ThreadedPySocks...
+2025-11-07 01:36:30,565 [INFO] telethon.network.mtprotosender: Disconnection from 149.154.167.51:443/_ThreadedPySocks complete!
+2025-11-07 01:36:30,566 [INFO] telethon.network.mtprotosender: Connecting to 91.108.56.199:443/_ThreadedPySocks...
+2025-11-07 01:36:34,347 [INFO] telethon.network.mtprotosender: Connection to 91.108.56.199:443/_ThreadedPySocks complete!
+2025-11-07 01:36:38,200 [INFO] mgrbot: Bot started. Restore workers...
+2025-11-07 01:36:38,202 [INFO] telethon.network.mtprotosender: Connecting to 149.154.175.51:443/_ThreadedPySocks...
+2025-11-07 01:36:38,357 [INFO] telethon.network.mtprotosender: Connection to 149.154.175.51:443/_ThreadedPySocks complete!
+2025-11-07 01:36:39,492 [INFO] mgrbot: [+57 321 838 0486] started on None; device=Honor 90
+2025-11-07 01:36:39,494 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-07 01:36:40,150 [WARNING] asyncio: Executing <Task pending name='Task-1' coro=<startup() running at C:\Users\User\AI_bot\tg_manager_bot_dynamic.py:5420> wait_for=<Future pending cb=[Task.task_wakeup()] created at C:\Users\User\python.3.13.0\tools\Lib\asyncio\base_events.py:460> cb=[_run_until_complete_cb() at C:\Users\User\python.3.13.0\tools\Lib\asyncio\base_events.py:182] created at C:\Users\User\python.3.13.0\tools\Lib\asyncio\tasks.py:748> took 0.111 seconds
+2025-11-07 01:36:42,466 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-11-07 01:36:43,204 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-07 01:36:44,410 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-11-07 01:36:44,634 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-07 01:36:46,555 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-11-07 01:36:47,322 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-07 01:36:48,397 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-11-07 01:36:48,606 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-07 01:36:50,121 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-11-07 01:36:50,375 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-07 01:36:53,188 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-11-07 01:36:53,799 [ERROR] telethon.client.updates: Unhandled exception on on_text
+Traceback (most recent call last):
+  File "C:\Users\User\AI_bot\venv\Lib\site-packages\telethon\client\updates.py", line 574, in _dispatch_update
+    await callback(event)
+  File "C:\Users\User\AI_bot\tg_manager_bot_dynamic.py", line 4882, in on_text
+    await bot_client.send_message(admin_id, "Менеджер запущен. Выбери действие:", buttons=main_menu())
+                                                                                          ~~~~~~~~~^^
+  File "C:\Users\User\AI_bot\tg_manager_bot_dynamic.py", line 3456, in main_menu
+    library_inline_button("overview", "📁 Файлы ↗"),
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\User\AI_bot\tg_manager_bot_dynamic.py", line 789, in library_inline_button
+    return Button.switch_inline_current(label, query=query)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'Button' has no attribute 'switch_inline_current'
+2025-11-07 01:36:54,264 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-07 01:36:56,899 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-11-07 01:36:58,065 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-07 01:36:59,691 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-11-07 01:36:59,907 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-07 01:37:00,953 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-11-07 01:37:01,165 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-07 01:37:02,893 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-11-07 01:37:03,103 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-07 01:37:04,294 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-11-07 01:37:04,507 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-07 01:37:05,006 [ERROR] telethon.client.updates: Unhandled exception on on_text
+Traceback (most recent call last):
+  File "C:\Users\User\AI_bot\venv\Lib\site-packages\telethon\client\updates.py", line 574, in _dispatch_update
+    await callback(event)
+  File "C:\Users\User\AI_bot\tg_manager_bot_dynamic.py", line 4882, in on_text
+    await bot_client.send_message(admin_id, "Менеджер запущен. Выбери действие:", buttons=main_menu())
+                                                                                          ~~~~~~~~~^^
+  File "C:\Users\User\AI_bot\tg_manager_bot_dynamic.py", line 3456, in main_menu
+    library_inline_button("overview", "📁 Файлы ↗"),
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\User\AI_bot\tg_manager_bot_dynamic.py", line 789, in library_inline_button
+    return Button.switch_inline_current(label, query=query)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'Button' has no attribute 'switch_inline_current'
+2025-11-07 01:37:05,563 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-11-07 01:37:05,771 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-07 01:37:07,365 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-11-07 01:37:07,585 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-07 01:37:08,799 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-11-07 01:37:09,023 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-07 01:37:10,253 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-11-07 01:37:10,463 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-07 01:37:11,649 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-11-07 01:37:11,866 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-07 01:37:13,143 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-11-07 01:37:13,359 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-07 01:37:14,956 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-11-07 01:37:37,942 [WARNING] asyncio: Executing <Task pending name='Task-1' coro=<startup() running at C:\Users\User\AI_bot\tg_manager_bot_dynamic.py:5420> wait_for=<Future pending cb=[Task.task_wakeup()] created at C:\Users\User\AI_bot\venv\Lib\site-packages\telethon\network\requeststate.py:18> cb=[_run_until_complete_cb() at C:\Users\User\python.3.13.0\tools\Lib\asyncio\base_events.py:182] created at C:\Users\User\python.3.13.0\tools\Lib\asyncio\tasks.py:748> took 22.987 seconds
+2025-11-07 01:37:38,155 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-07 01:37:40,030 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-11-07 01:37:40,954 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-07 01:37:41,630 [WARNING] asyncio: Executing <Task pending name='Task-1' coro=<startup() running at C:\Users\User\AI_bot\tg_manager_bot_dynamic.py:5420> wait_for=<Future pending cb=[Task.task_wakeup()] created at C:\Users\User\python.3.13.0\tools\Lib\asyncio\base_events.py:460> cb=[_run_until_complete_cb() at C:\Users\User\python.3.13.0\tools\Lib\asyncio\base_events.py:182] created at C:\Users\User\python.3.13.0\tools\Lib\asyncio\tasks.py:748> took 0.128 seconds
+2025-11-07 01:37:43,152 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-11-07 01:37:43,898 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-07 01:37:45,641 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-11-07 01:37:45,910 [INFO] mgrbot: Startup notification suppressed to avoid spamming users.
