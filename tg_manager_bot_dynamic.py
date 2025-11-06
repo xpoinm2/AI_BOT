@@ -776,6 +776,170 @@ FILE_TYPE_LABELS = {
 }
 
 
+LIBRARY_INLINE_QUERY_PREFIXES = {"library", "lib", "files"}
+LIBRARY_INLINE_RESULT_LIMIT = 25
+
+
+def library_inline_button(file_type: str, label: str) -> Button:
+    """Create an inline switch button for library previews."""
+
+    query = " ".join(("library", file_type)).strip()
+    return Button.switch_inline_current(label, query=query)
+
+
+def _inline_file_metadata(path: str) -> Tuple[str, str]:
+    try:
+        stat = os.stat(path)
+    except (FileNotFoundError, OSError):
+        return "", ""
+
+    size_label = _format_filesize(int(getattr(stat, "st_size", 0)))
+    try:
+        modified = datetime.fromtimestamp(getattr(stat, "st_mtime", 0))
+        modified_label = modified.strftime("%d.%m.%Y %H:%M")
+    except Exception:
+        modified_label = ""
+    return size_label, modified_label
+
+
+def _build_library_file_results(
+    owner_id: int,
+    file_type: str,
+    search_term: str,
+    *,
+    preloaded: Optional[List[str]] = None,
+) -> List[types.InlineQueryResult]:
+    all_files = list(preloaded) if preloaded is not None else list_templates_by_type(owner_id, file_type)
+
+    normalized_term = " ".join(search_term.split()) if search_term else ""
+    if normalized_term:
+        lowered = normalized_term.lower()
+        files = [path for path in all_files if lowered in os.path.basename(path).lower()]
+    else:
+        files = all_files
+
+    total_count = len(files)
+    full_count = len(all_files)
+    label = FILE_TYPE_LABELS.get(file_type, file_type.title())
+    summary_title = (
+        f"{label}: {total_count}"
+        if not normalized_term
+        else f"{label}: {total_count} (фильтр \"{normalized_term}\")"
+    )
+    description = f"Всего в категории: {full_count}"
+    if normalized_term:
+        description += f", подходит: {total_count}"
+
+    limited = files[:LIBRARY_INLINE_RESULT_LIMIT]
+    summary_lines = []
+    if total_count:
+        for path in limited:
+            summary_lines.append(f"• {os.path.basename(path)}")
+        if total_count > len(limited):
+            summary_lines.append(f"… и ещё {total_count - len(limited)}")
+    else:
+        summary_lines.append("Нет файлов, подходящих под условия.")
+
+    message_text_lines = [summary_title]
+    message_text_lines.extend(summary_lines)
+    message_text_lines.append("")
+    message_text_lines.append("Используйте меню файлов бота для управления этими шаблонами.")
+
+    results: List[types.InlineQueryResult] = [
+        types.InlineQueryResultArticle(
+            id=f"{file_type}:summary",
+            title=summary_title,
+            description=description,
+            input_message_content=types.InputTextMessageContent(
+                message_text="\n".join(message_text_lines)
+            ),
+        )
+    ]
+
+    if not total_count:
+        return results
+
+    for idx, path in enumerate(limited):
+        name = os.path.basename(path)
+        size_label, modified_label = _inline_file_metadata(path)
+        desc_parts = [part for part in (size_label, modified_label) if part]
+        description_text = " • ".join(desc_parts) if desc_parts else "Файл из библиотеки"
+        rel_path = os.path.relpath(path, start=LIBRARY_DIR)
+
+        message_lines = [f"{label} — {name}"]
+        if size_label:
+            message_lines.append(f"Размер: {size_label}")
+        if modified_label:
+            message_lines.append(f"Обновлён: {modified_label}")
+        message_lines.append(f"Путь: {rel_path}")
+        if normalized_term:
+            message_lines.append(f'Фильтр: "{normalized_term}"')
+        message_lines.append("")
+        message_lines.append("Чтобы отправить этот файл пользователю, откройте меню файлов или используйте шаблоны ответа.")
+
+        results.append(
+            types.InlineQueryResultArticle(
+                id=f"{file_type}:{idx}",
+                title=name,
+                description=description_text,
+                input_message_content=types.InputTextMessageContent(
+                    message_text="\n".join(message_lines)
+                ),
+            )
+        )
+
+    return results
+
+
+def _build_library_overview_results(owner_id: int) -> List[types.InlineQueryResult]:
+    files_by_type = {ft: list_templates_by_type(owner_id, ft) for ft in FILE_TYPE_LABELS}
+    total = sum(len(items) for items in files_by_type.values())
+
+    intro_lines = ["📁 Доступные файлы:"]
+    for ft, label in FILE_TYPE_LABELS.items():
+        intro_lines.append(f"• {label}: {len(files_by_type[ft])}")
+    intro_lines.append("")
+    intro_lines.append("Выберите категорию ниже, чтобы увидеть список конкретных файлов.")
+
+    results: List[types.InlineQueryResult] = [
+        types.InlineQueryResultArticle(
+            id="overview:summary",
+            title=f"Всего файлов: {total}",
+            description="Разбивка по категориям",
+            input_message_content=types.InputTextMessageContent(
+                message_text="\n".join(intro_lines)
+            ),
+        )
+    ]
+
+    for ft, files in files_by_type.items():
+        results.extend(_build_library_file_results(owner_id, ft, "", preloaded=files)[:1])
+
+    return results
+
+
+def _build_library_unknown_results(query: str) -> List[types.InlineQueryResult]:
+    available = ", ".join(f"{key}" for key in FILE_TYPE_LABELS.keys())
+    text_lines = [
+        f"Категория \"{query}\" не найдена.",
+        "Доступные категории:",
+    ]
+    text_lines.extend(f"• {label} ({key})" for key, label in FILE_TYPE_LABELS.items())
+    text_lines.append("")
+    text_lines.append("Используйте, например, запрос `library paste`.")
+
+    return [
+        types.InlineQueryResultArticle(
+            id="unknown",
+            title="Категория не найдена",
+            description=f"Доступные: {available}",
+            input_message_content=types.InputTextMessageContent(
+                message_text="\n".join(text_lines)
+            ),
+        )
+    ]
+
+
 def list_templates_by_type(owner_id: int, file_type: str) -> List[str]:
     if file_type == "paste":
         return list_text_templates(owner_id)
@@ -878,11 +1042,19 @@ def build_reply_options_keyboard(ctx: str, mode: str) -> List[List[Button]]:
     rows: List[List[Button]] = [
         [
             Button.inline("📄 Пасты", f"reply_paste_menu:{ctx}:{mode}".encode()),
+            library_inline_button("paste", "📄 Пасты ↗"),
+        ],
+        [
             Button.inline("🎙 Голосовые", f"reply_voice_menu:{ctx}:{mode}".encode()),
+            library_inline_button("voice", "🎙 Голосовые ↗"),
         ],
         [
             Button.inline("📹 Кружки", f"reply_video_menu:{ctx}:{mode}".encode()),
+            library_inline_button("video", "📹 Кружки ↗"),
+        ],
+        [
             Button.inline("💟 Стикеры", f"reply_sticker_menu:{ctx}:{mode}".encode()),
+            library_inline_button("sticker", "💟 Стикеры ↗"),
         ],
     ]
     if mode == "reply":
@@ -3277,7 +3449,10 @@ def main_menu():
     return [
         [Button.inline("➕ Добавить аккаунт", b"add")],
         [Button.inline("📋 Список аккаунтов", b"list")],
-        [Button.inline("📁 Файлы", b"files")],
+        [
+            Button.inline("📁 Файлы", b"files"),
+            library_inline_button("overview", "📁 Файлы ↗"),
+        ],
         [Button.inline("🧪 Ping", b"ping")],
     ]
 
@@ -3302,10 +3477,22 @@ def files_add_menu() -> List[List[Button]]:
 
 def files_delete_menu() -> List[List[Button]]:
     return [
-        [Button.inline("📄 Пасты", b"files_delete_paste")],
-        [Button.inline("🎙 Голосовые", b"files_delete_voice")],
-        [Button.inline("📹 Кружки", b"files_delete_video")],
-        [Button.inline("💟 Стикеры", b"files_delete_sticker")],
+        [
+            Button.inline("📄 Пасты", b"files_delete_paste"),
+            library_inline_button("paste", "📄 Пасты ↗"),
+        ],
+        [
+            Button.inline("🎙 Голосовые", b"files_delete_voice"),
+            library_inline_button("voice", "🎙 Голосовые ↗"),
+        ],
+        [
+            Button.inline("📹 Кружки", b"files_delete_video"),
+            library_inline_button("video", "📹 Кружки ↗"),
+        ],
+        [
+            Button.inline("💟 Стикеры", b"files_delete_sticker"),
+            library_inline_button("sticker", "💟 Стикеры ↗"),
+        ],
         [Button.inline("⬅️ Назад", b"files_root")],
     ]
 
@@ -3393,6 +3580,42 @@ def build_account_buttons(owner_id: int, prefix: str, page: int = 0) -> Tuple[Li
         rows.append(nav)
     rows.append([Button.inline("⬅️ Назад", b"list")])
     return rows, current_page, total_pages, total_count
+
+
+@bot_client.on(events.InlineQuery)
+async def on_inline_query(ev):
+    user_id = _extract_event_user_id(ev)
+    if user_id is None or not is_admin(user_id):
+        await ev.answer(
+            [],
+            cache_time=0,
+            switch_pm="🚫 Нет доступа",
+            switch_pm_param="start",
+        )
+        return
+
+    raw_query = (ev.text or "").strip()
+    parts = raw_query.split()
+    if parts and parts[0].lower() in LIBRARY_INLINE_QUERY_PREFIXES:
+        parts = parts[1:]
+
+    if not parts:
+        results = _build_library_overview_results(user_id)
+        await ev.answer(results, cache_time=0)
+        return
+
+    category = parts[0].lower()
+    remainder = " ".join(parts[1:]) if len(parts) > 1 else ""
+
+    if category in FILE_TYPE_LABELS:
+        results = _build_library_file_results(user_id, category, remainder)
+    elif category in {"all", "overview"}:
+        results = _build_library_overview_results(user_id)
+    else:
+        results = _build_library_unknown_results(category)
+
+    await ev.answer(results, cache_time=0)
+
 
 @bot_client.on(events.NewMessage(pattern="/start"))
 async def on_start(ev):
