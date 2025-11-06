@@ -3124,6 +3124,21 @@ MENU_BUTTON_TEXT = "MENU"
 menu_keyboard_shown: Set[int] = set()
 
 
+async def edit_or_send_message(
+    event: events.CallbackQuery.Event, admin_id: int, text: str, *, buttons=None, **kwargs
+) -> bool:
+    """Try to update the triggering message, falling back to sending a new one."""
+
+    try:
+        await event.edit(text, buttons=buttons, **kwargs)
+        return True
+    except Exception as exc:
+        log.debug("Не удалось обновить сообщение для %s: %s", admin_id, exc)
+
+    await bot_client.send_message(admin_id, text, buttons=buttons, **kwargs)
+    return False
+
+
 def get_worker(owner_id: int, phone: str) -> Optional[AccountWorker]:
     return WORKERS.get(owner_id, {}).get(phone)
 
@@ -3572,7 +3587,8 @@ async def on_cb(ev):
 
     if data == "proxy_menu":
         await answer_callback(ev)
-        await bot_client.send_message(
+        await edit_or_send_message(
+            ev,
             admin_id,
             format_proxy_settings(admin_id),
             buttons=proxy_menu_buttons(admin_id),
@@ -3582,7 +3598,8 @@ async def on_cb(ev):
     if data == "proxy_set":
         pending[admin_id] = {"flow": "proxy", "step": "type", "data": {}}
         await answer_callback(ev)
-        await bot_client.send_message(
+        await edit_or_send_message(
+            ev,
             admin_id,
             "Укажи тип прокси (SOCKS5/SOCKS4/HTTP):",
         )
@@ -3601,7 +3618,8 @@ async def on_cb(ev):
             text_lines.append(f"Перезапущено активных аккаунтов: {restarted}.")
         if errors:
             text_lines.append("⚠️ Ошибки при обновлении: " + "; ".join(errors))
-        await bot_client.send_message(
+        await edit_or_send_message(
+            ev,
             admin_id,
             "\n".join(text_lines),
             buttons=proxy_menu_buttons(admin_id),
@@ -3622,7 +3640,8 @@ async def on_cb(ev):
         if errors:
             summary.append("⚠️ Ошибки: " + "; ".join(errors))
         summary.extend(["", format_proxy_settings(admin_id)])
-        await bot_client.send_message(
+        await edit_or_send_message(
+            ev,
             admin_id,
             "\n".join(summary),
             buttons=proxy_menu_buttons(admin_id),
@@ -3680,7 +3699,8 @@ async def on_cb(ev):
 
     if data == "files":
         await answer_callback(ev)
-        await bot_client.send_message(
+        await edit_or_send_message(
+            ev,
             admin_id,
             "Выбери действие с файлами:",
             buttons=files_root_menu(),
@@ -3705,19 +3725,19 @@ async def on_cb(ev):
     if data == "files_paste":
         pending[admin_id] = {"flow": "file", "file_type": "paste", "step": "name"}
         await answer_callback(ev)
-        await bot_client.send_message(admin_id, "Введите название пасты:")
+        await edit_or_send_message(ev, admin_id, "Введите название пасты:")
         return
 
     if data == "files_voice":
         pending[admin_id] = {"flow": "file", "file_type": "voice", "step": "name"}
         await answer_callback(ev)
-        await bot_client.send_message(admin_id, "Введите название голосового:")
+        await edit_or_send_message(ev, admin_id, "Введите название голосового:")
         return
 
     if data == "files_video":
         pending[admin_id] = {"flow": "file", "file_type": "video", "step": "name"}
         await answer_callback(ev)
-        await bot_client.send_message(admin_id, "Введите название кружка:")
+        await edit_or_send_message(ev, admin_id, "Введите название кружка:")
         return
 
     if data == "files_sticker":
@@ -3750,7 +3770,8 @@ async def on_cb(ev):
     if data == "add":
         pending[admin_id] = {"flow": "account", "step": "proxy_choice"}
         await answer_callback(ev)
-        await bot_client.send_message(
+        await edit_or_send_message(
+            ev,
             admin_id,
             (
                 "Перед добавлением аккаунта выбери подключение:"
@@ -3767,7 +3788,8 @@ async def on_cb(ev):
         st["step"] = "proxy_manual"
         st.pop("proxy_config", None)
         await answer_callback(ev)
-        await bot_client.send_message(
+        await edit_or_send_message(
+            ev,
             admin_id,
             (
                 "Пришли параметры прокси в формате\n"
@@ -3784,7 +3806,8 @@ async def on_cb(ev):
         st["step"] = "phone"
         st["proxy_config"] = {"enabled": False}
         await answer_callback(ev)
-        await bot_client.send_message(
+        await edit_or_send_message(
+            ev,
             admin_id,
             "Подключение будет без прокси. Пришли номер телефона (+7XXXXXXXXXX)",
         )
@@ -3795,13 +3818,20 @@ async def on_cb(ev):
             await answer_callback(ev, "Добавление отменено", alert=True)
         else:
             await answer_callback(ev)
-        await bot_client.send_message(admin_id, "Меню", buttons=main_menu())
+        await edit_or_send_message(ev, admin_id, "Главное меню", buttons=main_menu())
         return
 
     if data == "list":
         accounts = get_accounts_meta(admin_id)
         if not accounts:
-            await answer_callback(ev, "Пусто", alert=True); await bot_client.send_message(admin_id, "Аккаунтов нет."); return
+            await answer_callback(ev, "Пусто", alert=True)
+            await edit_or_send_message(
+                ev,
+                admin_id,
+                "Аккаунтов нет.",
+                buttons=main_menu(),
+            )
+            return
         lines = ["Аккаунты:"]
         for p, m in accounts.items():
             worker = get_worker(admin_id, p)
@@ -3832,12 +3862,17 @@ async def on_cb(ev):
                 f"• {status} {p} | api:{m.get('api_id')} | dev:{m.get('device','')} | proxy:{proxy_label}{note}{note_extra}"
             )
         await answer_callback(ev)
-        await bot_client.send_message(admin_id, "\n".join(lines), buttons=account_control_menu())
+        await edit_or_send_message(
+            ev,
+            admin_id,
+            "\n".join(lines),
+            buttons=account_control_menu(),
+        )
         return
 
     if data == "back":
         await answer_callback(ev)
-        await bot_client.send_message(admin_id, "Главное меню", buttons=main_menu())
+        await edit_or_send_message(ev, admin_id, "Главное меню", buttons=main_menu())
         return
 
     if data == "del_select":
@@ -3846,7 +3881,7 @@ async def on_cb(ev):
         await answer_callback(ev)
         buttons, page, total_pages, _ = build_account_buttons(admin_id, "del_do")
         caption = format_page_caption("Выбери аккаунт для удаления", page, total_pages)
-        await bot_client.send_message(admin_id, caption, buttons=buttons)
+        await edit_or_send_message(ev, admin_id, caption, buttons=buttons)
         return
 
     if data == "val_select":
@@ -3855,7 +3890,7 @@ async def on_cb(ev):
         await answer_callback(ev)
         buttons, page, total_pages, _ = build_account_buttons(admin_id, "val_do")
         caption = format_page_caption("Выбери аккаунт для проверки", page, total_pages)
-        await bot_client.send_message(admin_id, caption, buttons=buttons)
+        await edit_or_send_message(ev, admin_id, caption, buttons=buttons)
         return
 
     if data.startswith("acct_page:"):
@@ -3999,7 +4034,12 @@ async def on_cb(ev):
         if meta and meta.get("session_file") and os.path.exists(meta["session_file"]):
             with contextlib.suppress(OSError):
                 os.remove(meta["session_file"])
-        await bot_client.send_message(admin_id, f"🗑 Аккаунт {phone} удалён.", buttons=main_menu())
+        await edit_or_send_message(
+            ev,
+            admin_id,
+            f"🗑 Аккаунт {phone} удалён.",
+            buttons=main_menu(),
+        )
         return
 
     if data.startswith("val_do:"):
@@ -4010,37 +4050,28 @@ async def on_cb(ev):
         worker = await ensure_worker_running(admin_id, phone)
         if not worker:
             if state == "banned":
-                await bot_client.send_message(
-                    admin_id,
-                    f"⛔️ {phone} заблокирован Telegram. Аккаунт отключён.",
-                    buttons=main_menu(),
-                )
+                result_text = f"⛔️ {phone} заблокирован Telegram. Аккаунт отключён."
             elif state == "frozen":
-                await bot_client.send_message(
-                    admin_id,
-                    f"🧊 {phone} заморожен Telegram. Требуется разблокировка.",
-                    buttons=main_menu(),
-                )
+                result_text = f"🧊 {phone} заморожен Telegram. Требуется разблокировка."
             else:
-                await bot_client.send_message(admin_id, f"⚠️ Аккаунт {phone} не активен.", buttons=main_menu())
-            return
-        ok = await worker.validate()
-        if ok:
-            await bot_client.send_message(admin_id, f"✅ {phone} активен и принимает сообщения.", buttons=main_menu())
-        elif state == "banned":
-            await bot_client.send_message(
-                admin_id,
-                f"⛔️ {phone} заблокирован Telegram. Аккаунт отключён.",
-                buttons=main_menu(),
-            )
-        elif state == "frozen":
-            await bot_client.send_message(
-                admin_id,
-                f"🧊 {phone} заморожен Telegram. Требуется разблокировка.",
-                buttons=main_menu(),
-            )
+                result_text = f"⚠️ Аккаунт {phone} не активен."
         else:
-            await bot_client.send_message(admin_id, f"❌ {phone} не отвечает. Проверь подключение.", buttons=main_menu())
+            ok = await worker.validate()
+            if ok:
+                result_text = f"✅ {phone} активен и принимает сообщения."
+            elif state == "banned":
+                result_text = f"⛔️ {phone} заблокирован Telegram. Аккаунт отключён."
+            elif state == "frozen":
+                result_text = f"🧊 {phone} заморожен Telegram. Требуется разблокировка."
+            else:
+                result_text = f"❌ {phone} не отвечает. Проверь подключение."
+
+        await edit_or_send_message(
+            ev,
+            admin_id,
+            result_text,
+            buttons=main_menu(),
+        )
         return
 
     if data.startswith("mark_read:"):
