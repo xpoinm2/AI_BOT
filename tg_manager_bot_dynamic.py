@@ -3590,7 +3590,10 @@ def main_menu():
     return [
         [Button.inline("➕ Добавить аккаунт", b"add")],
         [Button.inline("📋 Список аккаунтов", b"list")],
-        [library_inline_button("", "📁 Файлы ↗")],
+        [
+            Button.inline("📁 Файлы", b"files"),
+            library_inline_button("", "📁 Файлы ↗"),
+        ],
         [Button.inline("🧪 Ping", b"ping")],
     ]
 
