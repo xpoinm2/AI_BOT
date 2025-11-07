@@ -18,7 +18,20 @@ import time
 from collections import OrderedDict, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, AsyncGenerator, Awaitable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import (
+    Any,
+    AsyncGenerator,
+    Awaitable,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Tuple,
+    Union,
+    TYPE_CHECKING,
+    Set,
+)
+
 
 from telethon import Button, TelegramClient, events
 from telethon.errors import (
@@ -29,7 +42,6 @@ from telethon.errors import (
     FloodWaitError,
     MessageNotModifiedError,
     MessageTooLongError,
-    RpcError,
     UserIsBlockedError,
 )
 from telethon.sessions import StringSession
