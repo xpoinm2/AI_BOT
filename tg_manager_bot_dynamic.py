@@ -1726,23 +1726,11 @@ def _build_notification_buttons(
     rows: List[List[Button]] = [
         [
             Button.inline("✉️ Ответить", f"reply:{ctx_id}".encode()),
-            Button.inline("👀 Прочитать", f"mark_read:{ctx_id}".encode()),
             Button.inline("↩️ Реплай", f"reply_to:{ctx_id}".encode()),
         ],
+        [Button.inline("👀 Прочитать", f"mark_read:{ctx_id}".encode())],
         [Button.inline("🚫 Заблокировать", f"block_contact:{ctx_id}".encode())],
     ]
-    rows.extend(
-        [
-            [
-                library_inline_button("paste", "📄 Пасты ↗"),
-                library_inline_button("voice", "🎙 Голосовые ↗"),
-            ],
-            [
-                library_inline_button("video", "📹 Кружки ↗"),
-                library_inline_button("sticker", "💟 Стикеры ↗"),
-            ],
-        ]
-    )
     toggle_label = "⏵ История" if collapsed else "⏷ История"
     toggle_state = "open" if collapsed else "close"
     rows.append(
