@@ -1265,8 +1265,23 @@ def build_reply_prompt(ctx_info: Dict[str, Any], mode: str) -> str:
     )
 
 
+def _reply_mode_button(label: str, ctx: str, mode: str) -> Button:
+    return Button.inline(label, f"reply_mode:{ctx}:{mode}".encode())
+
+
 def build_reply_options_keyboard(ctx: str, mode: str) -> List[List[Button]]:
-    rows: List[List[Button]] = _library_inline_rows()
+    current_mode = "reply" if mode == "reply" else "normal"
+    normal_label = ("✅ " if current_mode == "normal" else "") + "✉️ Ответить"
+    reply_label = ("✅ " if current_mode == "reply" else "") + "↩️ Реплай"
+
+    rows: List[List[Button]] = [
+        [
+            _reply_mode_button(normal_label, ctx, "normal"),
+            _reply_mode_button(reply_label, ctx, "reply"),
+        ]
+    ]
+
+    rows.extend(_library_inline_rows())
     if mode == "reply":
         rows.append([Button.inline("💬 Реакция", f"reply_reaction_menu:{ctx}:{mode}".encode())])
     rows.append([Button.inline("❌ Отмена", f"reply_cancel:{ctx}".encode())])
@@ -4667,6 +4682,30 @@ async def on_cb(ev):
             await answer_callback(ev, "Некорректные данные", alert=True)
             return
         _, ctx, mode = parts
+        ctx_info = get_reply_context_for_admin(ctx, admin_id)
+        if not ctx_info:
+            await answer_callback(ev, "Контекст истёк", alert=True)
+            return
+        await mark_dialog_read_for_context(ctx_info)
+        reply_waiting[admin_id] = {"ctx": ctx, "mode": mode}
+        await answer_callback(ev)
+        await show_interactive_message(
+            admin_id,
+            build_reply_prompt(ctx_info, mode),
+            buttons=build_reply_options_keyboard(ctx, mode),
+            replace=True,
+        )
+        return
+
+    if data.startswith("reply_mode:"):
+        parts = data.split(":", 2)
+        if len(parts) != 3:
+            await answer_callback(ev, "Некорректные данные", alert=True)
+            return
+        _, ctx, mode = parts
+        if mode not in {"normal", "reply"}:
+            await answer_callback(ev, "Неизвестный режим", alert=True)
+            return
         ctx_info = get_reply_context_for_admin(ctx, admin_id)
         if not ctx_info:
             await answer_callback(ev, "Контекст истёк", alert=True)
