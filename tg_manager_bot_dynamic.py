@@ -111,6 +111,8 @@ API_KEYS = [
 ]
 
 BOT_TOKEN = "8377353888:AAFj_l3l1XAie5RA8PMwxD1gXtb2eEDOdJw"   # токен бота от @BotFather
+# Имя пользователя бота устанавливается во время запуска через get_me().
+BOT_USERNAME: Optional[str] = None
 # Изначальные супер-администраторы, которые могут выдавать доступ другим пользователям
 ROOT_ADMIN_IDS = {8099997426, 7519364639}
 
@@ -3629,6 +3631,7 @@ def files_root_menu() -> List[List[Button]]:
             Button.inline("➕ Добавить", b"files_add"),
             Button.inline("🗑 Удалить", b"files_delete"),
         ],
+        [library_inline_button("", "📁 Файлы ↗")],
         [Button.inline("⬅️ Назад", b"back")],
     ]
 
@@ -4097,17 +4100,24 @@ async def on_cb(ev):
 
     if data == "files":
         await answer_callback(ev)
+        overview_text = _build_library_overview_text(admin_id)
         await edit_or_send_message(
             ev,
             admin_id,
-            "Выбери действие с файлами:",
+            overview_text,
             buttons=files_root_menu(),
         )
         return
 
     if data == "files_root":
         await answer_callback(ev)
-        await ev.edit("Выбери действие с файлами:", buttons=files_root_menu())
+        overview_text = _build_library_overview_text(admin_id)
+        await edit_or_send_message(
+            ev,
+            admin_id,
+            overview_text,
+            buttons=files_root_menu(),
+        )
         return
 
     if data == "files_add":
@@ -5558,6 +5568,15 @@ async def on_text(ev):
 # ---- startup ----
 async def startup():
     await bot_client.start(bot_token=BOT_TOKEN)
+    global BOT_USERNAME
+    try:
+        me = await bot_client.get_me()
+    except Exception as err:
+        BOT_USERNAME = None
+        log.warning("Не удалось получить имя пользователя бота: %s", err)
+    else:
+        username = getattr(me, "username", None)
+        BOT_USERNAME = username or None
     log.info("Bot started. Restore workers...")
     for owner_key, tenant_data in tenants.items():
         try:
