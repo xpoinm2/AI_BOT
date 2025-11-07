@@ -21,7 +21,7 @@ from logging.handlers import RotatingFileHandler
 from typing import Dict, Optional, Any, List, Tuple, Set, TYPE_CHECKING
 from io import BytesIO
 from telethon import TelegramClient, events, Button, functions, helpers, types
-from OpenAi_helper import gpt_answer, gpt_answer_variants
+from OpenAi_helper import generate_dating_ai_variants
 from telethon.utils import get_display_name
 from telethon.sessions import StringSession
 from telethon.errors import (
@@ -3240,16 +3240,54 @@ async def handle_ai_autoreply(worker: "AccountWorker", ev, peer) -> None:
             )
         return
 
+    # Подготовка профиля и истории для промпта
+    account_meta = get_account_meta(worker.owner_id, worker.phone) or {}
+    profile_description: Optional[str] = None
+    for key in (
+        "profile_description",
+        "profile_text",
+        "bio",
+        "about",
+        "full_name",
+    ):
+        value = account_meta.get(key)
+        if isinstance(value, str) and value.strip():
+            profile_description = value.strip()
+            break
+
+    history_lines: List[str] = []
+    history_texts: List[str] = []
+    client = getattr(worker, "client", None)
+    if client is not None:
+        try:
+            history_messages = await client.get_messages(
+                peer or ev.chat_id, limit=MAX_HISTORY_MESSAGES
+            )
+        except Exception as history_err:
+            log.debug(
+                "[%s] не удалось загрузить историю для AI-промпта: %s",
+                worker.phone,
+                history_err,
+            )
+        else:
+            for message in reversed(history_messages):
+                if getattr(message, "id", None) == getattr(ev, "id", None):
+                    continue
+                raw = (message.raw_text or "").strip()
+                if not raw:
+                    continue
+                label = "Я:" if getattr(message, "out", False) else "Он:"
+                history_lines.append(f"{label} {raw}")
+                history_texts.append(raw)
+
     # 2) GPT — генерим несколько вариантов и отправляем админу на выбор
     try:
-        variants = await gpt_answer_variants(
-            prompt=user_text,
-            system_prompt=(
-                "Ты помогаешь вести переписку в Telegram от лица человека.\n"
-                "Отвечай кратко (1–2 предложения), дружелюбно и по делу.\n"
-                "Не придумывай факты и не давай обещаний, которых нет в вопросе."
-            ),
-            model="gpt-5",
+        variants = await generate_dating_ai_variants(
+            user_text,
+            history_lines=history_lines,
+            history_texts=[*history_texts, user_text],
+            profile=profile_description,
+            model="gpt-4o",
             temperature=0.7,
             n=3,
         )

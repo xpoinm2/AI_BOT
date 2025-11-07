@@ -1,6 +1,7 @@
 import os
 import logging
-from typing import Optional, Literal, List
+from datetime import datetime
+from typing import Optional, Literal, List, Sequence
 
 from openai import AsyncOpenAI
 
@@ -236,3 +237,144 @@ async def gpt_answer_variants(
         max_tokens=max_tokens,
         n=n,
     )
+
+
+def _strip_quotes(text: str) -> str:
+    """Удаляет кавычки из текста."""
+    if not text:
+        return text
+    return "".join(ch for ch in text if ch not in {'"', "'"})
+
+
+def _is_negative_reply(text: str) -> bool:
+    """Проверяет, является ли ответ отрицанием "нет" без знаков препинания."""
+    normalized = (text or "").lower().strip()
+    for symbol in (".", "!", "?", '"', "'"):
+        normalized = normalized.replace(symbol, "")
+    return normalized == "нет"
+
+
+async def generate_dating_ai_variants(
+    text: str,
+    *,
+    history_lines: Sequence[str],
+    history_texts: Sequence[str],
+    profile: Optional[str] = None,
+    api_key: Optional[str] = None,
+    model: OpenAIModel = "gpt-4o",
+    temperature: float = 0.7,
+    max_tokens: Optional[int] = None,
+    n: int = 3,
+) -> List[str]:
+    """Генерирует варианты ответов в стиле анкеты знакомств."""
+
+    now = datetime.now()
+    logger.info("Генерация AI-ответов для входящего сообщения: %s", text)
+
+    sys_prompt = (
+        "Ты, слегка туповатый и простодушный человек в чате, ЖЕНСКОГО пола. "
+        "Не выдавай, что ты нейросеть или искусственный интеллект. Отвечай просто, "
+        "коротко, иногда делай ошибки, как реальный человек."
+        "Также, если собеседник пишет не на русском языке, дай понять, что ты не понимаешь, что он хочет.\n"
+        "Не проявляй инициативу в разговоре, отвечай только на конкретные сообщения, не пытайся поддерживать разговор.\n"
+        "Дайвинчик (ДВ, ЛДВ, Давинчик) — бот для знакомств, где создают анкеты, ставят лайки и общаются при взаимном лайке. "
+        "Простой сервис для поиска совпадений и общения, в этом сервисе, ты оставляла анкету там и общаешься с своим потенциальным парнем\n"
+        "Во всех остальных случаях веди себя как обычный, простой собеседник девушка. "
+    )
+
+    history_block = "\n".join(history_lines).strip()
+    if history_block:
+        history_block = f"{history_block}\n"
+
+    prompt = (
+        f"сейчас {now.day:02d} число, {now.month:02d} месяца, {now.year} года\n"
+        f"\nТвое описание: \n{(profile or 'Описание профиля не указано.').strip()}\n\n"
+        "История сообщений ниже\n'Я:'- Твои сообщения, 'Он:' -  сообщения собеседника \n"
+        f"{history_block}"
+        f"Последнее сообщение пользователя: {text}"
+    )
+
+    raw_variants = await gpt_multi(
+        model=model,
+        system_prompt=sys_prompt,
+        user_prompt=prompt,
+        api_key=api_key,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        n=n,
+    )
+
+    history_values_repr = repr(list(history_texts))
+    processed: List[str] = []
+
+    for variant in raw_variants:
+        candidate = (variant or "").strip()
+        if not candidate:
+            continue
+
+        if _is_negative_reply(candidate):
+            logger.debug("Обнаружен отрицательный ответ, выполняю переформулировку")
+            rephrase_prompt = (
+                "Отвечай только на русском языке.\n"
+                "Придумай текст, который предполагает не знание темы, вот текст, тема которого должна быть определена "
+                f"'{text}'"
+                "Пример ответа:\"Я не поняла про что ты говоришь\"\n"
+            )
+            if history_values_repr and history_values_repr != "[]":
+                rephrase_prompt += (
+                    "Ответ не должен совпадать из каких либо сообщений из данных:\n"
+                    f"{history_values_repr}"
+                )
+
+            candidate = await gpt(
+                model=model,
+                system_prompt="Переформулируй текст",
+                user_prompt=rephrase_prompt,
+                api_key=api_key,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            candidate = (candidate or "").strip()
+
+        if not candidate:
+            continue
+
+        grammar_prompt = (
+            "Добавь грамматические ошибки, но они должны быть неявными и разными по типу.\n "
+            "Используй скобочку только, если это требуется, не нужно создавать скобочку,')'. \n"
+            "Скобки ставятся только если действительно нужно пояснить или уточнить что-то в тексте, а не просто чтобы сделать предложение «живее» или «эмоциональнее». Если контекст не требует, скобки не нужны\n"
+            "Если скобочка не нужна и это вопрос, поставь знак вопроса. \n"
+            "Если в сообщении несколько предложений, все, кроме последнего, должны заканчиваться точкой. \n"
+            "Если в сообщении одно предложение, точку не ставить.\n\n"
+            "Когда ставить запятые:\n"
+            "— перед союзами а, но, однако, зато\n"
+            "— при однородных членах, если нет повторяющихся союзов \n"
+            "— при вводных словах \n"
+            "— при деепричастных оборотах \n"
+            "— при причастных оборотах после определяемого слова \n"
+            "— между частями сложносочинённого предложения\n"
+            "— между главным и придаточным в сложноподчинённом предложении \n"
+            "Когда не ставить запятые:\n"
+            "— между подлежащим и сказуемым \n"
+            "— между двумя сказуемыми без союза\n"
+            "— при одиночном деепричастии, ставшем наречием \n"
+            "— если причастный оборот стоит перед определяемым словом \n"
+            "— при устойчивых выражениях — зависит от контекста\n"
+            "Не используй заглавную букву как ошибку\n"
+            f"ТЕКСТ:\n\"{candidate}\""
+        )
+
+        candidate = await gpt(
+            model=model,
+            system_prompt="добавь ошибки в текст не меняя его структуру",
+            user_prompt=grammar_prompt,
+            api_key=api_key,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        candidate = _strip_quotes((candidate or "").strip())
+
+        if candidate:
+            processed.append(candidate)
+
+    return processed
