@@ -780,6 +780,13 @@ FILE_TYPE_LABELS = {
     "sticker": "Стикеры",
 }
 
+FILE_TYPE_ADD_CALLBACK = {
+    "paste": "files_paste",
+    "voice": "files_voice",
+    "video": "files_video",
+    "sticker": "files_sticker",
+}
+
 
 LIBRARY_INLINE_QUERY_PREFIXES = {"library", "lib", "files"}
 LIBRARY_INLINE_RESULT_LIMIT = 25
@@ -793,6 +800,7 @@ class InlineArticle:
     title: str
     description: str
     text: str
+    buttons: Optional[List[List[Button]]] = None
 
 
 def library_inline_button(file_type: str, label: str) -> Button:
@@ -804,6 +812,20 @@ def library_inline_button(file_type: str, label: str) -> Button:
     # behaviour by opening the inline query in the current chat instead of
     # redirecting the user to a different dialog.
     return Button.switch_inline(label, query=query, same_peer=True)
+
+
+def library_manage_buttons(file_type: str) -> Optional[List[List[Button]]]:
+    """Inline keyboard for managing templates of the given type."""
+
+    if file_type not in FILE_TYPE_LABELS:
+        return None
+
+    rows: List[List[Button]] = []
+    add_payload = FILE_TYPE_ADD_CALLBACK.get(file_type)
+    if add_payload:
+        rows.append([Button.inline("➕ Добавить", add_payload.encode())])
+    rows.append([Button.inline("🗑 Удалить", f"files_delete_{file_type}".encode())])
+    return rows
 
 
 async def _render_inline_articles(
@@ -819,6 +841,8 @@ async def _render_inline_articles(
         }
         if article.description:
             kwargs["description"] = article.description
+        if article.buttons:
+            kwargs["buttons"] = article.buttons
         results.append(await builder.article(**kwargs))
     return results
 
@@ -1000,6 +1024,7 @@ def _build_library_file_results(
             title=summary_title,
             description=description,
             text="\n".join(message_text_lines),
+            buttons=library_manage_buttons(file_type),
         )
     ]
 
