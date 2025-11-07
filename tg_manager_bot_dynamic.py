@@ -3674,20 +3674,13 @@ async def cancel_operations(admin_id: int, notify: bool = True) -> bool:
     return cancelled
 
 def menu_keyboard() -> List[List[Button]]:
-    return [[Button.text(MENU_BUTTON_TEXT, resize=True)]]
+    return []
+
 
 async def ensure_menu_keyboard(admin_id: int) -> None:
     if admin_id in menu_keyboard_shown:
         return
-    try:
-        await bot_client.send_message(
-            admin_id,
-            "⌨️ Чтобы вернуться в главное меню, нажимай кнопку MENU слева от скрепки.",
-            buttons=menu_keyboard(),
-        )
-        menu_keyboard_shown.add(admin_id)
-    except Exception as e:
-        log.warning("Cannot show MENU keyboard to %s: %s", admin_id, e)
+    menu_keyboard_shown.add(admin_id)
 
 def main_menu():
     return [
@@ -3707,25 +3700,15 @@ def files_root_menu() -> List[List[Button]]:
             Button.inline("➕ Добавить", b"files_add"),
             Button.inline("🗑 Удалить", b"files_delete"),
         ],
-        [library_inline_button("", "📁 Файлы ↗")],
+        [Button.inline("📁 Все файлы", b"files_overview")],
         [Button.inline("⬅️ Назад", b"back")],
     ]
 
 
 def files_inline_mode_menu() -> List[List[Button]]:
-    """Инлайновое меню режимов работы с файлами.
+    """Меню действий с файлами, использующее обычные инлайн-кнопки."""
 
-    Кнопки здесь не отправляют новое сообщение в чат, а открывают
-    inline-запрос вида `library add` / `library delete` в текущем диалоге.
-    """
-    return [
-        [
-            library_inline_button("add", "➕ Добавить ↗"),
-            library_inline_button("delete", "🗑 Удалить ↗"),
-        ],
-        [library_inline_button("", "📁 Все файлы ↗")],
-        [Button.inline("⬅️ Назад", b"back")],
-    ]
+    return files_root_menu()
 
 
 def files_add_menu() -> List[List[Button]]:
@@ -4221,6 +4204,17 @@ async def on_cb(ev):
         return
 
     if data == "files_root":
+        await answer_callback(ev)
+        overview_text = _build_library_overview_text(admin_id)
+        await edit_or_send_message(
+            ev,
+            admin_id,
+            overview_text,
+            buttons=files_inline_mode_menu(),
+        )
+        return
+
+    if data == "files_overview":
         await answer_callback(ev)
         overview_text = _build_library_overview_text(admin_id)
         await edit_or_send_message(
