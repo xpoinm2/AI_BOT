@@ -3,31 +3,55 @@ from __future__ import annotations
 import asyncio
 import base64
 import contextlib
-import os
+import dataclasses
+import datetime as dt
 import json
 import logging
-import sys
+import os
 import random
-import secrets
-import html
 import re
-import shutil
-import socket
-import mimetypes
-from dataclasses import dataclass
-from datetime import datetime
+import secrets
+import string
+import sys
+import textwrap
+import time
 from collections import OrderedDict, defaultdict
-from logging.handlers import RotatingFileHandler
-from typing import Dict, Optional, Any, List, Tuple, Set, TYPE_CHECKING
-from io import BytesIO
-from telethon import TelegramClient, events, Button, functions, helpers, types
-from OpenAi_helper import gpt_answer, gpt_answer_variants
-from telethon.utils import get_display_name
-from telethon.sessions import StringSession
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, AsyncGenerator, Awaitable, Dict, Iterable, List, Optional, Tuple, Union
+
+from telethon import Button, TelegramClient, events
 from telethon.errors import (
-    SessionPasswordNeededError,
+    AuthKeyDuplicatedError,
+    ChannelPrivateError,
+    ChatAdminRequiredError,
+    ChatWriteForbiddenError,
     FloodWaitError,
-    PeerIdInvalidError,
+    MessageNotModifiedError,
+    MessageTooLongError,
+    RpcError,
+    UserIsBlockedError,
+)
+from telethon.sessions import StringSession
+from telethon.tl.custom.message import Message
+from telethon.tl.functions.account import UpdateProfileRequest
+from telethon.tl.functions.channels import GetFullChannelRequest
+from telethon.tl.functions.messages import GetHistoryRequest
+from telethon.tl.types import (
+    DocumentAttributeAudio,
+    DocumentAttributeFilename,
+    InputPeerChannel,
+    InputPeerChat,
+    InputPeerUser,
+    MessageMediaDocument,
+    MessageMediaPhoto,
+    MessageMediaUnsupported,
+    MessageMediaWebPage,
+    PeerChannel,
+    PeerChat,
+    PeerUser,
+    ReplyKeyboardMarkup,
+    User,
 )
 try:  # Telethon <= 1.33.1
     from telethon.errors import QueryIdInvalidError  # type: ignore[attr-defined]
@@ -983,7 +1007,13 @@ def _build_library_file_results(
     search_term: str,
     *,
     preloaded: Optional[List[str]] = None,
+    mode: Optional[str] = None,
 ) -> List[InlineArticle]:
+    """Формирует inline-результаты для файлов конкретного типа.
+
+    summary-карточка сверху убрана — возвращаем только сами файлы.
+    Если mode == "delete", выбор результата приводит к удалению файла.
+    """
     all_files = list(preloaded) if preloaded is not None else list_templates_by_type(owner_id, file_type)
 
     normalized_term = " ".join(search_term.split()) if search_term else ""
@@ -994,44 +1024,28 @@ def _build_library_file_results(
         files = all_files
 
     total_count = len(files)
-    full_count = len(all_files)
     label = FILE_TYPE_LABELS.get(file_type, file_type.title())
-    summary_title = (
-        f"{label}: {total_count}"
-        if not normalized_term
-        else f"{label}: {total_count} (фильтр \"{normalized_term}\")"
-    )
-    description = f"Всего в категории: {full_count}"
-    if normalized_term:
-        description += f", подходит: {total_count}"
 
-    limited = files[:LIBRARY_INLINE_RESULT_LIMIT]
-    summary_lines = []
-    if total_count:
-        for path in limited:
-            summary_lines.append(f"• {os.path.basename(path)}")
-        if total_count > len(limited):
-            summary_lines.append(f"… и ещё {total_count - len(limited)}")
-    else:
-        summary_lines.append("Нет файлов, подходящих под условия.")
-
-    message_text_lines = [summary_title]
-    message_text_lines.extend(summary_lines)
-    message_text_lines.append("")
-    message_text_lines.append("Используйте меню файлов бота для управления этими шаблонами.")
-
-    results: List[InlineArticle] = [
-        InlineArticle(
-            id=f"{file_type}:summary",
-            title=summary_title,
-            description=description,
-            text="\n".join(message_text_lines),
-            buttons=library_manage_buttons(file_type),
-        )
-    ]
-
+    # Если файлов нет — возвращаем одну информационную карточку
     if not total_count:
-        return results
+        msg_lines = [
+            f"{label}: файлов нет.",
+            "",
+            "Добавьте файлы через меню бота.",
+        ]
+        return [
+            InlineArticle(
+                id=f"{file_type}:empty",
+                title=f"{label}: нет файлов",
+                description="В этой категории пока нет файлов",
+                text="\n".join(msg_lines),
+            )
+        ]
+
+    # Обрезаем по лимиту
+    limited = files[:LIBRARY_INLINE_RESULT_LIMIT]
+    deleting = (mode == "delete")
+    results: List[InlineArticle] = []
 
     for idx, path in enumerate(limited):
         name = os.path.basename(path)
@@ -1040,23 +1054,35 @@ def _build_library_file_results(
         description_text = " • ".join(desc_parts) if desc_parts else "Файл из библиотеки"
         rel_path = os.path.relpath(path, start=LIBRARY_DIR)
 
-        message_lines = [f"{label} — {name}"]
-        if size_label:
-            message_lines.append(f"Размер: {size_label}")
-        if modified_label:
-            message_lines.append(f"Обновлён: {modified_label}")
-        message_lines.append(f"Путь: {rel_path}")
-        if normalized_term:
-            message_lines.append(f'Фильтр: "{normalized_term}"')
-        message_lines.append("")
-        message_lines.append("Чтобы отправить этот файл пользователю, откройте меню файлов или используйте шаблоны ответа.")
+        if deleting:
+            # Режим удаления: при выборе инлайна отправляем служебную команду,
+            # которую перехватит on_text и удалит файл.
+            token = _register_payload(path)
+            command = f"INLINE_DEL:{file_type}:{token}"
+            article_text = command
+            article_title = f"🗑 {name}"
+        else:
+            message_lines = [f"{label} — {name}"]
+            if size_label:
+                message_lines.append(f"Размер: {size_label}")
+            if modified_label:
+                message_lines.append(f"Обновлён: {modified_label}")
+            message_lines.append(f"Путь: {rel_path}")
+            if normalized_term:
+                message_lines.append(f'Фильтр: "{normalized_term}"')
+            message_lines.append("")
+            message_lines.append(
+                "Чтобы отправить этот файл пользователю, откройте меню файлов или используйте шаблоны ответа."
+            )
+            article_text = "\n".join(message_lines)
+            article_title = name
 
         results.append(
             InlineArticle(
                 id=f"{file_type}:{idx}",
-                title=name,
+                title=article_title,
                 description=description_text,
-                text="\n".join(message_lines),
+                text=article_text,
             )
         )
 
@@ -1103,51 +1129,42 @@ def _build_inline_type_results(owner_id: int, mode: str) -> List[InlineArticle]:
     ]
 
 def _build_library_overview_results(owner_id: int) -> List[InlineArticle]:
-    """
-    Стартовый экран инлайна для файлов.
+    """Стартовый экран инлайна для файлов.
 
-    Вызывается, когда инлайн-запрос пустой:
-    - просто нажали на кнопку "📁 Файлы ↗"
-    - или ввели @бот и выбрали его без текста.
-    Показываем две карточки: "Добавить" и "Удалить".
+    При пустом запросе показываем две карточки: "Добавить" и "Удалить".
     """
 
-    def _mode_buttons(mode: str) -> List[List[Button]]:
-        """
-        Кнопки выбора типа файла для указанного режима:
-        mode == 'add'   -> library add paste/voice/video/sticker
-        mode == 'delete'-> library delete paste/voice/video/sticker
-        Все кнопки — со стрелочкой (inline), без callback.
-        """
-        normalized_mode = "add" if mode == "add" else "delete"
-
-        return [
-            [
-                library_inline_button(f"{normalized_mode} paste", "📄 Пасты ↗"),
-                library_inline_button(f"{normalized_mode} voice", "🎙 Голосовые ↗"),
-            ],
-            [
-                library_inline_button(f"{normalized_mode} video", "📹 Кружки ↗"),
-                library_inline_button(f"{normalized_mode} sticker", "💟 Стикеры ↗"),
-            ],
-        ]
-
-    # Карточка "Добавить"
+    # Карточка "Добавить": обычные (callback) кнопки типов файлов.
     add_article = InlineArticle(
         id="overview:add",
         title="➕ Добавить",
         description="Добавить файл в библиотеку",
         text="Выберите тип файла, который нужно добавить:",
-        buttons=_mode_buttons("add"),
+        buttons=files_add_menu(),
     )
 
-    # Карточка "Удалить"
+    # Карточка "Удалить": кнопки типов файлов — инлайн (со стрелочкой),
+    # дальше откроется список файлов этого типа.
+    delete_buttons: List[List[Button]] = [
+        [
+            library_inline_button("delete paste", "📄 Пасты ↗"),
+            library_inline_button("delete voice", "🎙 Голосовые ↗"),
+        ],
+        [
+            library_inline_button("delete video", "📹 Кружки ↗"),
+            library_inline_button("delete sticker", "💟 Стикеры ↗"),
+        ],
+    ]
+
     delete_article = InlineArticle(
         id="overview:delete",
         title="🗑 Удалить",
         description="Удалить файл из библиотеки",
-        text="Выберите тип файла, который нужно удалить:",
-        buttons=_mode_buttons("delete"),
+        text=(
+            "Выберите тип файлов, которые нужно удалить.\n\n"
+            "После выбора появится инлайн-список файлов этого типа."
+        ),
+        buttons=delete_buttons,
     )
 
     return [add_article, delete_article]
@@ -3833,6 +3850,14 @@ def build_account_buttons(owner_id: int, prefix: str, page: int = 0) -> Tuple[Li
 
 @bot_client.on(events.InlineQuery)
 async def on_inline_query(ev):
+    """Обработка inline-запросов.
+
+    Используется только для работы с файловой библиотекой:
+    - library
+    - library add/delete
+    - library <type>
+    - library delete <type>
+    """
     user_id = _extract_event_user_id(ev)
     if user_id is None or not is_admin(user_id):
         await ev.answer(
@@ -3845,29 +3870,25 @@ async def on_inline_query(ev):
 
     raw_query = (ev.text or "").strip()
     parts = raw_query.split()
+    # Сносим префикс library / files / file / lib
     if parts and parts[0].lower() in LIBRARY_INLINE_QUERY_PREFIXES:
         parts = parts[1:]
 
+    # Режим (add/delete)
     mode: Optional[str] = None
     if parts and parts[0].lower() in {"add", "delete", "del", "remove"}:
         token = parts.pop(0).lower()
         mode = "add" if token == "add" else "delete"
 
-    # Ничего кроме режима не указано -> показываем выбор типа файлов
+    # Пустой запрос -> стартовый экран с "Добавить" / "Удалить"
     if not parts:
-        if mode:
-            results = await _render_inline_articles(
-                ev.builder,
-                _build_inline_type_results(user_id, mode),
-            )
-        else:
-            results = await _render_inline_articles(
-                ev.builder,
-                _build_library_overview_results(user_id),
-            )
+        results = await _render_inline_articles(
+            ev.builder, _build_library_overview_results(user_id)
+        )
         await ev.answer(results, cache_time=0)
         return
 
+    # Дальше первый параметр — это уже тип файла или "all/overview"
     category = parts[0].lower()
     remainder = " ".join(parts[1:]) if len(parts) > 1 else ""
 
@@ -3875,7 +3896,7 @@ async def on_inline_query(ev):
         # library paste / library add paste / library delete paste
         results = await _render_inline_articles(
             ev.builder,
-            _build_library_file_results(user_id, category, remainder),
+            _build_library_file_results(user_id, category, remainder, mode=mode),
         )
     elif category in {"all", "overview"}:
         results = await _render_inline_articles(
@@ -3889,7 +3910,6 @@ async def on_inline_query(ev):
         )
 
     await ev.answer(results, cache_time=0)
-
 
 
 @bot_client.on(events.NewMessage(pattern="/start"))
@@ -5119,6 +5139,34 @@ async def on_text(ev):
     text = (ev.raw_text or "").strip()
 
     await ensure_menu_keyboard(admin_id)
+
+    # Инлайновое удаление файла (служебное сообщение из inline-результата)
+    if text.startswith("INLINE_DEL:"):
+        parts = text.split(":", 2)
+        if len(parts) == 3:
+            _, file_type, encoded = parts
+            if file_type in FILE_TYPE_LABELS:
+                path = _resolve_payload(encoded)
+                if path is None:
+                    # Пытаемся декодировать как base64-путь (на всякий случай)
+                    with contextlib.suppress(Exception):
+                        path = _decode_payload(encoded)
+                if path is not None:
+                    allowed_dirs = _allowed_template_directories(admin_id, file_type)
+                    if any(_is_path_within(d, path) for d in allowed_dirs):
+                        name = os.path.basename(path)
+                        try:
+                            if os.path.exists(path):
+                                os.remove(path)
+                                await ev.respond(f"🗑 Файл «{name}» удалён.")
+                            else:
+                                await ev.respond(f"Файл «{name}» уже отсутствует.")
+                        except Exception as e:
+                            await ev.respond(f"Не удалось удалить файл: {e}")
+        # Служебное сообщение можно удалить, чтобы не мусорить
+        with contextlib.suppress(Exception):
+            await ev.delete()
+        return
 
     # Если админ редактирует AI-подсказку
     task_id = editing_ai_reply.get(admin_id)
