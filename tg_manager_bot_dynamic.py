@@ -1266,24 +1266,7 @@ def build_reply_prompt(ctx_info: Dict[str, Any], mode: str) -> str:
 
 
 def build_reply_options_keyboard(ctx: str, mode: str) -> List[List[Button]]:
-    rows: List[List[Button]] = [
-        [
-            Button.inline("📄 Пасты", f"reply_paste_menu:{ctx}:{mode}".encode()),
-            library_inline_button("paste", "📄 Пасты ↗"),
-        ],
-        [
-            Button.inline("🎙 Голосовые", f"reply_voice_menu:{ctx}:{mode}".encode()),
-            library_inline_button("voice", "🎙 Голосовые ↗"),
-        ],
-        [
-            Button.inline("📹 Кружки", f"reply_video_menu:{ctx}:{mode}".encode()),
-            library_inline_button("video", "📹 Кружки ↗"),
-        ],
-        [
-            Button.inline("💟 Стикеры", f"reply_sticker_menu:{ctx}:{mode}".encode()),
-            library_inline_button("sticker", "💟 Стикеры ↗"),
-        ],
-    ]
+    rows: List[List[Button]] = _library_inline_rows()
     if mode == "reply":
         rows.append([Button.inline("💬 Реакция", f"reply_reaction_menu:{ctx}:{mode}".encode())])
     rows.append([Button.inline("❌ Отмена", f"reply_cancel:{ctx}".encode())])
@@ -1698,6 +1681,21 @@ async def _build_history_html(client: TelegramClient, peer: Any, limit: int = MA
     return "<br>".join(entries)
 
 
+def _library_inline_rows() -> List[List[Button]]:
+    """Shortcut for commonly used inline query buttons."""
+
+    return [
+        [
+            library_inline_button("paste", "📄 Пасты ↗"),
+            library_inline_button("voice", "🎙 Голосовые ↗"),
+        ],
+        [
+            library_inline_button("video", "📹 Кружки ↗"),
+            library_inline_button("sticker", "💟 Стикеры ↗"),
+        ],
+    ]
+
+
 def _build_notification_text(
     header_lines: List[str],
     bullet_lines: List[str],
@@ -1728,6 +1726,7 @@ def _build_notification_buttons(
             Button.inline("✉️ Ответить", f"reply:{ctx_id}".encode()),
             Button.inline("↩️ Реплай", f"reply_to:{ctx_id}".encode()),
         ],
+        *(_library_inline_rows()),
         [Button.inline("👀 Прочитать", f"mark_read:{ctx_id}".encode())],
         [Button.inline("🚫 Заблокировать", f"block_contact:{ctx_id}".encode())],
     ]
@@ -3557,6 +3556,37 @@ async def interactive_go_back(admin_id: int, session_id: str) -> Tuple[bool, Opt
         log.warning("Failed to restore interactive view for %s: %s", admin_id, e)
         return False, "error"
     return True, None
+
+
+async def clear_interactive_message(admin_id: int) -> None:
+    state = interactive_views.pop(admin_id, None)
+    if not state:
+        return
+    message_id = state.get("message_id")
+    if not message_id:
+        return
+    try:
+        await bot_client.delete_messages(admin_id, message_id)
+    except Exception as exc:
+        log.debug("Не удалось удалить интерактивное сообщение для %s: %s", admin_id, exc)
+
+
+def _schedule_message_deletion(chat_id: int, message_id: int, delay: float) -> None:
+    async def _cleanup() -> None:
+        try:
+            await asyncio.sleep(delay)
+            await bot_client.delete_messages(chat_id, message_id)
+        except Exception as exc:
+            log.debug("Не удалось удалить временное сообщение для %s: %s", chat_id, exc)
+
+    asyncio.create_task(_cleanup())
+
+
+async def send_temporary_message(chat_id: int, text: str, *, delay: float = 5.0) -> None:
+    msg = await bot_client.send_message(chat_id, text)
+    _schedule_message_deletion(chat_id, msg.id, delay)
+
+
 menu_button_reset: Set[int] = set()
 
 ADD_ACCOUNT_PROMPT = (
@@ -3713,8 +3743,10 @@ async def cancel_operations(admin_id: int, notify: bool = True) -> bool:
         cancelled = True
     if edit_waiting.pop(admin_id, None) is not None:
         cancelled = True
-    if cancelled and notify:
-        await bot_client.send_message(admin_id, "❌ Текущая операция отменена.")
+    if cancelled:
+        await clear_interactive_message(admin_id)
+        if notify:
+            await send_temporary_message(admin_id, "❌ Текущая операция отменена.")
     return cancelled
 
 async def ensure_menu_button_hidden(admin_id: int) -> None:
@@ -4703,8 +4735,10 @@ async def on_cb(ev):
         ctx_info = get_reply_context_for_admin(ctx, admin_id)
         if ctx_info:
             await mark_dialog_read_for_context(ctx_info)
+        reply_waiting.pop(admin_id, None)
         await answer_callback(ev)
-        await bot_client.send_message(admin_id, "❌ Ответ отменён.")
+        await clear_interactive_message(admin_id)
+        await send_temporary_message(admin_id, "❌ Ответ отменён.")
         return
 
     if data.startswith("block_contact:"):
