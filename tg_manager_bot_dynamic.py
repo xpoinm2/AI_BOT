@@ -391,7 +391,7 @@ async def clear_owner_runtime(owner_id: int) -> None:
             await worker.logout()
     pending.pop(owner_id, None)
     reply_waiting.pop(owner_id, None)
-    menu_keyboard_shown.discard(owner_id)
+    menu_button_reset.discard(owner_id)
     for ctx_id, ctx in list(reply_contexts.items()):
         if ctx.get("owner_id") == owner_id:
             reply_contexts.pop(ctx_id, None)
@@ -3519,8 +3519,7 @@ async def interactive_go_back(admin_id: int, session_id: str) -> Tuple[bool, Opt
         log.warning("Failed to restore interactive view for %s: %s", admin_id, e)
         return False, "error"
     return True, None
-MENU_BUTTON_TEXT = "MENU"
-menu_keyboard_shown: Set[int] = set()
+menu_button_reset: Set[int] = set()
 
 ADD_ACCOUNT_PROMPT = (
     "Перед добавлением аккаунта выбери подключение:"
@@ -3532,7 +3531,14 @@ BOT_COMMANDS: List[types.BotCommand] = [
     types.BotCommand(command="start", description="Открыть главное меню"),
     types.BotCommand(command="add", description="Добавить аккаунт"),
     types.BotCommand(command="accounts", description="Список аккаунтов и статусы"),
-    types.BotCommand(command="files", description="Управление файлами и шаблонами"),
+    types.BotCommand(
+        command="files_add",
+        description="Добавить файл или шаблон в библиотеку",
+    ),
+    types.BotCommand(
+        command="files_delete",
+        description="Удалить файл или шаблон из библиотеки",
+    ),
     types.BotCommand(
         command="grant",
         description="Выдать доступ пользователю (для супер-админов)",
@@ -3673,42 +3679,28 @@ async def cancel_operations(admin_id: int, notify: bool = True) -> bool:
         await bot_client.send_message(admin_id, "❌ Текущая операция отменена.")
     return cancelled
 
-def menu_keyboard() -> List[List[Button]]:
-    return []
-
-
-async def ensure_menu_keyboard(admin_id: int) -> None:
-    if admin_id in menu_keyboard_shown:
+async def ensure_menu_button_hidden(admin_id: int) -> None:
+    if admin_id in menu_button_reset:
         return
-    menu_keyboard_shown.add(admin_id)
+    try:
+        await bot_client(
+            functions.bots.SetBotMenuButtonRequest(
+                user_id=admin_id,
+                button=types.BotMenuButtonDefault(),
+            )
+        )
+    except Exception as exc:
+        log.debug("Не удалось сбросить кнопку меню для %s: %s", admin_id, exc)
+    else:
+        menu_button_reset.add(admin_id)
 
 def main_menu():
     return [
         [Button.inline("➕ Добавить аккаунт", b"add")],
         [Button.inline("📋 Список аккаунтов", b"list")],
-        [
-            Button.inline("📁 Файлы", b"files"),
-            library_inline_button("", "📁 Файлы ↗"),
-        ],
+        [library_inline_button("", "📁 Файлы ↗")],
         [Button.inline("🧪 Ping", b"ping")],
     ]
-
-
-def files_root_menu() -> List[List[Button]]:
-    return [
-        [
-            Button.inline("➕ Добавить", b"files_add"),
-            Button.inline("🗑 Удалить", b"files_delete"),
-        ],
-        [Button.inline("📁 Все файлы", b"files_overview")],
-        [Button.inline("⬅️ Назад", b"back")],
-    ]
-
-
-def files_inline_mode_menu() -> List[List[Button]]:
-    """Меню действий с файлами, использующее обычные инлайн-кнопки."""
-
-    return files_root_menu()
 
 
 def files_add_menu() -> List[List[Button]]:
@@ -3721,7 +3713,7 @@ def files_add_menu() -> List[List[Button]]:
             Button.inline("📹 Кружки", b"files_video"),
             Button.inline("💟 Стикеры", b"files_sticker"),
         ],
-        [Button.inline("⬅️ Назад", b"files_root")],
+        [Button.inline("⬅️ Назад", b"back")],
     ]
 
 
@@ -3735,7 +3727,7 @@ def files_delete_menu() -> List[List[Button]]:
             Button.inline("📹 Кружки", b"files_delete_video"),
             Button.inline("💟 Стикеры", b"files_delete_sticker"),
         ],
-        [Button.inline("⬅️ Назад", b"files_root")],
+        [Button.inline("⬅️ Назад", b"back")],
     ]
 
 
@@ -3896,7 +3888,7 @@ async def on_start(ev):
         await ev.respond("Доступ запрещён."); return
     await cancel_operations(admin_id, notify=False)
     await ev.respond("Менеджер запущен. Выбери действие:", buttons=main_menu())
-    await ensure_menu_keyboard(admin_id)
+    await ensure_menu_button_hidden(admin_id)
 
 @bot_client.on(events.CallbackQuery)
 async def on_cb(ev):
@@ -3907,7 +3899,7 @@ async def on_cb(ev):
 
     notify_cancel = not data.startswith(("reply", "ui_back"))
     await cancel_operations(admin_id, notify=notify_cancel)
-    await ensure_menu_keyboard(admin_id)
+    await ensure_menu_button_hidden(admin_id)
 
     if data == "noop":
         await answer_callback(ev)
@@ -4190,44 +4182,6 @@ async def on_cb(ev):
             await answer_callback(ev, "Доступ пользователя отключён и данные архивированы.", alert=True)
         else:
             await answer_callback(ev, "Не удалось отключить пользователя.", alert=True)
-        return
-
-    if data == "files":
-        await answer_callback(ev)
-        overview_text = _build_library_overview_text(admin_id)
-        await edit_or_send_message(
-            ev,
-            admin_id,
-            overview_text,
-            buttons=files_inline_mode_menu(),
-        )
-        return
-
-    if data == "files_root":
-        await answer_callback(ev)
-        overview_text = _build_library_overview_text(admin_id)
-        await edit_or_send_message(
-            ev,
-            admin_id,
-            overview_text,
-            buttons=files_inline_mode_menu(),
-        )
-        return
-
-    if data == "files_overview":
-        await answer_callback(ev)
-        overview_text = _build_library_overview_text(admin_id)
-        await edit_or_send_message(
-            ev,
-            admin_id,
-            overview_text,
-            buttons=files_inline_mode_menu(),
-        )
-        return
-
-    if data == "files_add":
-        await answer_callback(ev)
-        await ev.edit("Выбери тип файлов для сохранения:", buttons=files_add_menu())
         return
 
     if data == "files_delete":
@@ -5122,7 +5076,7 @@ async def on_text(ev):
         return
     text = (ev.raw_text or "").strip()
 
-    await ensure_menu_keyboard(admin_id)
+    await ensure_menu_button_hidden(admin_id)
 
     # Инлайновое удаление файла (служебное сообщение из inline-результата)
     if text.startswith("INLINE_DEL:"):
@@ -5189,21 +5143,17 @@ async def on_text(ev):
         await ev.reply("✅ Отправлено с твоим текстом:\n\n" + text)
         return
 
-    if text.upper() == MENU_BUTTON_TEXT:
-        await cancel_operations(admin_id)
-        await bot_client.send_message(admin_id, "Менеджер запущен. Выбери действие:", buttons=main_menu())
-        return
-
     if text.startswith("/"):
         await cancel_operations(admin_id)
         parts = text.split()
-        cmd = parts[0].lower()
-        if cmd == "/start":
+        cmd_full = parts[0].lower()
+        cmd_base = cmd_full.split("@", 1)[0]
+        if cmd_base == "/start":
             await ev.respond("Менеджер запущен. Выбери действие:", buttons=main_menu())
-        elif cmd in {"/add", "/addaccount"}:
+        elif cmd_base in {"/add", "/addaccount"}:
             pending[admin_id] = {"flow": "account", "step": "proxy_choice"}
             await ev.respond(ADD_ACCOUNT_PROMPT, buttons=account_add_proxy_menu())
-        elif cmd in {"/accounts", "/list"}:
+        elif cmd_base in {"/accounts", "/list"}:
             accounts = get_accounts_meta(admin_id)
             if not accounts:
                 await ev.respond("Аккаунтов нет.", buttons=main_menu())
@@ -5238,10 +5188,22 @@ async def on_text(ev):
                     f"• {status} {p} | api:{m.get('api_id')} | dev:{m.get('device','')} | proxy:{proxy_label}{note}{note_extra}"
                 )
             await ev.respond("\n".join(lines), buttons=account_control_menu())
-        elif cmd == "/files":
-            overview_text = _build_library_overview_text(admin_id)
-            await ev.respond(overview_text, buttons=files_inline_mode_menu())
-        elif cmd == "/grant":
+        elif (
+            cmd_base in {"/files_add", "/filesadd"}
+            or (cmd_base == "/files" and len(parts) >= 2 and parts[1].lower() == "add")
+        ):
+            await ev.respond("Выбери тип файлов для сохранения:", buttons=files_add_menu())
+        elif (
+            cmd_base in {"/files_delete", "/filesdelete"}
+            or (cmd_base == "/files" and len(parts) >= 2 and parts[1].lower() == "delete")
+        ):
+            await ev.respond("Выбери тип файлов для удаления:", buttons=files_delete_menu())
+        elif cmd_base == "/files":
+            await ev.respond(
+                "Команда /files больше не используется. Выбери /files add или /files delete.",
+                buttons=main_menu(),
+            )
+        elif cmd_base == "/grant":
             if not is_root_admin(admin_id):
                 await ev.respond("Команда доступна только супер-администратору.")
                 return
@@ -5257,12 +5219,12 @@ async def on_text(ev):
             ensure_tenant(new_id, role=role)
             await ev.respond(f"Доступ выдан пользователю {new_id}. Роль: {role}.")
             await safe_send_admin("Вам выдан доступ к менеджеру. Отправьте /start", owner_id=new_id)
-        elif cmd == "/users":
+        elif cmd_base == "/users":
             if not is_root_admin(admin_id):
                 await ev.respond("Команда доступна только супер-администратору.")
                 return
             await send_user_access_list(admin_id)
-        elif cmd == "/revoke":
+        elif cmd_base == "/revoke":
             if not is_root_admin(admin_id):
                 await ev.respond("Команда доступна только супер-администратору.")
                 return
@@ -5282,7 +5244,7 @@ async def on_text(ev):
                 await ev.respond(f"Доступ пользователя {target_id} отключен.")
                 await safe_send_admin("Ваш доступ к менеджеру отключен.", owner_id=target_id)
             else:
-                await ev.respond("Пользователь не найден или уже удалён.")          
+                await ev.respond("Пользователь не найден или уже удалён.") 
         else:
             await ev.respond("Неизвестная команда. Используй меню.")
         return
