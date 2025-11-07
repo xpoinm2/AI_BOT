@@ -838,6 +838,119 @@ def _inline_file_metadata(path: str) -> Tuple[str, str]:
     return size_label, modified_label
 
 
+def _library_command_instructions() -> str:
+    if BOT_USERNAME:
+        return (
+            "ℹ️ Для расширенного поиска нажмите кнопку «Файлы ↗» или наберите "
+            f"@{BOT_USERNAME} library <категория> в строке сообщения."
+        )
+    return "ℹ️ Для расширенного поиска воспользуйтесь кнопкой «Файлы ↗»."
+
+
+def _build_library_overview_text(owner_id: int) -> str:
+    files_by_type = {ft: list_templates_by_type(owner_id, ft) for ft in FILE_TYPE_LABELS}
+    total = sum(len(items) for items in files_by_type.values())
+
+    lines = ["📁 Доступные файлы:"]
+    for ft, label in FILE_TYPE_LABELS.items():
+        lines.append(f"• {label}: {len(files_by_type[ft])}")
+    lines.append("")
+    lines.append(f"Всего файлов: {total}")
+    lines.append("")
+    lines.append(_library_command_instructions())
+    return "\n".join(lines)
+
+
+def _build_library_category_text(
+    owner_id: int, file_type: str, search_term: str
+) -> str:
+    all_files = list_templates_by_type(owner_id, file_type)
+    normalized_term = " ".join(search_term.split()) if search_term else ""
+    if normalized_term:
+        lowered = normalized_term.lower()
+        files = [path for path in all_files if lowered in os.path.basename(path).lower()]
+    else:
+        files = all_files
+
+    label = FILE_TYPE_LABELS.get(file_type, file_type.title())
+    lines: List[str] = []
+    header = f"{label}: {len(files)}"
+    if normalized_term:
+        header += f" (фильтр \"{normalized_term}\")"
+    lines.append(header)
+    lines.append(f"Всего в категории: {len(all_files)}")
+    if not files:
+        lines.append("Нет файлов, подходящих под условия.")
+    else:
+        limit = 10
+        for path in files[:limit]:
+            name = os.path.basename(path)
+            size_label, modified_label = _inline_file_metadata(path)
+            meta_parts = [part for part in (size_label, modified_label) if part]
+            meta = f" ({', '.join(meta_parts)})" if meta_parts else ""
+            rel_path = os.path.relpath(path, start=LIBRARY_DIR)
+            lines.append(f"• {name}{meta}")
+            lines.append(f"  {rel_path}")
+        if len(files) > limit:
+            lines.append(f"… и ещё {len(files) - limit}")
+    lines.append("")
+    lines.append(
+        "Чтобы отправить файл собеседнику, используйте меню «Файлы» или шаблоны ответа."
+    )
+    lines.append(_library_command_instructions())
+    return "\n".join(lines)
+
+
+def _build_library_unknown_text(query: str) -> str:
+    lines = [f"Категория \"{query}\" не найдена."]
+    lines.append("Доступные категории:")
+    for key, label in FILE_TYPE_LABELS.items():
+        lines.append(f"• {label} ({key})")
+    lines.append("")
+    lines.append("Попробуйте, например, запрос `library paste`.")
+    lines.append(_library_command_instructions())
+    return "\n".join(lines)
+
+
+def _extract_library_command_query(text: str) -> Optional[str]:
+    stripped = text.strip()
+    if not stripped:
+        return None
+    tokens = stripped.split()
+    if not tokens:
+        return None
+    first = tokens[0]
+    if first.startswith("@") and len(tokens) > 1:
+        tokens = tokens[1:]
+        first = tokens[0]
+    lowered = first.lower()
+    if (
+        lowered in LIBRARY_INLINE_QUERY_PREFIXES
+        or lowered in FILE_TYPE_LABELS
+        or lowered in {"overview", "all"}
+    ):
+        return " ".join(tokens)
+    return None
+
+
+def _render_library_command(owner_id: int, query: str) -> str:
+    parts = query.split()
+    if parts and parts[0].lower() in LIBRARY_INLINE_QUERY_PREFIXES:
+        parts = parts[1:]
+
+    if not parts:
+        return _build_library_overview_text(owner_id)
+
+    category = parts[0].lower()
+    remainder = " ".join(parts[1:]) if len(parts) > 1 else ""
+
+    if category in FILE_TYPE_LABELS:
+        return _build_library_category_text(owner_id, category, remainder)
+    if category in {"overview", "all"}:
+        return _build_library_overview_text(owner_id)
+    return _build_library_unknown_text(category)
+
+
 def _build_library_file_results(
     owner_id: int,
     file_type: str,
