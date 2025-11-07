@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from collections import OrderedDict, defaultdict
 from logging.handlers import RotatingFileHandler
-from typing import Dict, Optional, Any, List, Tuple, Set, TYPE_CHECKING
+from typing import Dict, Optional, Any, List, Tuple, Set, TYPE_CHECKING, Callable, cast
 from io import BytesIO
 from telethon import TelegramClient, events, Button, functions, helpers, types
 from OpenAi_helper import generate_dating_ai_variants
@@ -791,6 +791,43 @@ FILE_TYPE_ADD_CALLBACK = {
 }
 
 
+REPLY_TEMPLATE_META: Dict[str, Dict[str, Any]] = {
+    "paste": {
+        "emoji": "📄",
+        "label": FILE_TYPE_LABELS["paste"],
+        "title": "📄 Выбери пасту для отправки:",
+        "empty": "Папка с пастами пуста",
+        "prefix": "paste_send",
+        "loader": list_text_templates,
+    },
+    "voice": {
+        "emoji": "🎙",
+        "label": FILE_TYPE_LABELS["voice"],
+        "title": "🎙 Выбери голосовое сообщение:",
+        "empty": "Папка с голосовыми пуста",
+        "prefix": "voice_send",
+        "loader": list_voice_templates,
+    },
+    "video": {
+        "emoji": "📹",
+        "label": FILE_TYPE_LABELS["video"],
+        "title": "📹 Выбери кружок для отправки:",
+        "empty": "Папка с кружками пуста",
+        "prefix": "video_send",
+        "loader": list_video_templates,
+    },
+    "sticker": {
+        "emoji": "💟",
+        "label": FILE_TYPE_LABELS["sticker"],
+        "title": "💟 Выбери стикер для отправки:",
+        "empty": "Папка со стикерами пуста",
+        "prefix": "sticker_send",
+        "loader": list_sticker_templates,
+    },
+}
+
+
+
 LIBRARY_INLINE_QUERY_PREFIXES = {"library", "lib", "files"}
 LIBRARY_INLINE_RESULT_LIMIT = 25
 
@@ -841,20 +878,30 @@ def _build_reply_inline_results(
                 "Контекст устарел. Закрой уведомление и дождись нового.",
             )
         ]
-
-    mode_title = "ответ" if mode == "normal" else "реплай"
     description = f"Аккаунт {ctx_info['phone']} • чат {ctx_info['chat_id']}"
-    return [
+    articles: List[InlineArticle] = [
         InlineArticle(
-            id=f"reply_{ctx_id}_{mode}",
-            title=f"Начать {mode_title}",
+            id=f"reply_{ctx_id}_{mode}_text",
+            title="✍️ Написать сообщение",
             description=description,
-            text=(
-                f"🔄 Запускаю режим {mode_title}…\n"
-                f"{INLINE_REPLY_SENTINEL}{mode}:{ctx_id}"
-            ),
+            text=f"{INLINE_REPLY_SENTINEL}{mode}:{ctx_id}",
         )
     ]
+
+    for file_type, meta in REPLY_TEMPLATE_META.items():
+        emoji = meta.get("emoji", "")
+        label = meta.get("label", file_type)
+        inline_label = f"{emoji} {label}".strip()
+        articles.append(
+            InlineArticle(
+                id=f"reply_{ctx_id}_{mode}_{file_type}",
+                title=inline_label,
+                description=description,
+                text=f"{INLINE_REPLY_SENTINEL}{mode}:{ctx_id}:picker:{file_type}",
+            )
+        )
+
+    return articles
 
 
 def _parse_reply_inline_query(query: str) -> Optional[Tuple[str, str]]:
@@ -867,6 +914,37 @@ def _parse_reply_inline_query(query: str) -> Optional[Tuple[str, str]]:
     ctx = parts[1] if len(parts) > 1 else ""
     mode = "reply" if token == "reply_to" else "normal"
     return ctx, mode
+
+
+def _prepare_reply_asset_menu(owner_id: int, file_type: str) -> Optional[Tuple[List[str], str, str, str]]:
+    meta = REPLY_TEMPLATE_META.get(file_type)
+    if not meta:
+        return None
+    loader = cast(Callable[[int], List[str]], meta["loader"])
+    files = loader(owner_id)
+    return files, meta["empty"], meta["title"], meta["prefix"]
+
+
+async def _open_reply_asset_menu(
+    admin_id: int, ctx: str, mode: str, file_type: str
+) -> Optional[str]:
+    ctx_info = get_reply_context_for_admin(ctx, admin_id)
+    if not ctx_info:
+        return "Контекст истёк"
+    await mark_dialog_read_for_context(ctx_info)
+    menu = _prepare_reply_asset_menu(ctx_info["owner_id"], file_type)
+    if not menu:
+        return "Неизвестный тип файла"
+    files, empty_text, title, prefix = menu
+    if not files:
+        return empty_text
+    await show_interactive_message(
+        admin_id,
+        title,
+        buttons=build_asset_keyboard(files, prefix, ctx, mode),
+        replace=True,
+    )
+    return None
 
 
 def library_manage_buttons(file_type: str) -> Optional[List[List[Button]]]:
@@ -1814,7 +1892,6 @@ def _build_notification_buttons(
             Button.switch_inline("✉️ Ответить", query=f"reply {ctx_id}", same_peer=True),
             Button.switch_inline("↩️ Реплай", query=f"reply_to {ctx_id}", same_peer=True),
         ],
-        *(_library_inline_rows()),
         [Button.inline("👀 Прочитать", f"mark_read:{ctx_id}".encode())],
         [Button.inline("🚫 Заблокировать", f"block_contact:{ctx_id}".encode())],
     ]
@@ -4732,7 +4809,7 @@ async def on_cb(ev):
         if len(parts) != 3:
             await answer_callback(ev, "Некорректные данные", alert=True)
             return
-        _, ctx, mode = parts
+        menu_token, ctx, mode = parts
         ctx_info = get_reply_context_for_admin(ctx, admin_id)
         if not ctx_info:
             await answer_callback(ev, "Контекст истёк", alert=True)
@@ -4903,27 +4980,12 @@ async def on_cb(ev):
             await answer_callback(ev, "Контекст истёк", alert=True)
             return
         await mark_dialog_read_for_context(ctx_info)
-        owner_for_ctx = ctx_info["owner_id"]
-        if data.startswith("reply_paste_menu:"):
-            files = list_text_templates(owner_for_ctx)
-            empty_text = "Папка с пастами пуста"
-            title = "📄 Выбери пасту для отправки:"
-            prefix = "paste_send"
-        elif data.startswith("reply_voice_menu:"):
-            files = list_voice_templates(owner_for_ctx)
-            empty_text = "Папка с голосовыми пуста"
-            title = "🎙 Выбери голосовое сообщение:"
-            prefix = "voice_send"
-        elif data.startswith("reply_video_menu:"):
-            files = list_video_templates(owner_for_ctx)
-            empty_text = "Папка с кружками пуста"
-            title = "📹 Выбери кружок для отправки:"
-            prefix = "video_send"
-        else:
-            files = list_sticker_templates(owner_for_ctx)
-            empty_text = "Папка со стикерами пуста"
-            title = "💟 Выбери стикер для отправки:"
-            prefix = "sticker_send"
+        file_type = menu_token.split("_", 2)[1] if "_" in menu_token else ""
+        menu = _prepare_reply_asset_menu(ctx_info["owner_id"], file_type)
+        if not menu:
+            await answer_callback(ev, "Неизвестный тип", alert=True)
+            return
+        files, empty_text, title, prefix = menu
         if not files:
             await answer_callback(ev, empty_text, alert=True)
             return
@@ -5267,12 +5329,21 @@ async def on_text(ev):
     sentinel_index = text.find(INLINE_REPLY_SENTINEL)
     if sentinel_index != -1:
         payload = text[sentinel_index + len(INLINE_REPLY_SENTINEL) :]
-        mode_token, _, ctx = payload.partition(":")
-        mode = "reply" if mode_token == "reply" else "normal"
-        if ctx:
+        tokens = [token for token in payload.split(":") if token]
+        if len(tokens) >= 2:
+            mode_token, ctx = tokens[0], tokens[1]
+            mode = "reply" if mode_token == "reply" else "normal"
             error = await _activate_reply_session(admin_id, ctx, mode)
             if error:
                 await send_temporary_message(admin_id, f"❌ {error}")
+            else:
+                if len(tokens) >= 4 and tokens[2] == "picker":
+                    file_type = tokens[3]
+                    picker_error = await _open_reply_asset_menu(
+                        admin_id, ctx, mode, file_type
+                    )
+                    if picker_error:
+                        await send_temporary_message(admin_id, f"❌ {picker_error}")
         with contextlib.suppress(Exception):
             await ev.delete()
         return
