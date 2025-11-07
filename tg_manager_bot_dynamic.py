@@ -15,6 +15,7 @@ import string
 import sys
 import textwrap
 import time
+from logging.handlers import RotatingFileHandler
 from collections import OrderedDict, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
