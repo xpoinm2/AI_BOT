@@ -3522,6 +3522,23 @@ async def interactive_go_back(admin_id: int, session_id: str) -> Tuple[bool, Opt
 MENU_BUTTON_TEXT = "MENU"
 menu_keyboard_shown: Set[int] = set()
 
+ADD_ACCOUNT_PROMPT = (
+    "Перед добавлением аккаунта выбери подключение:"
+    "\n• введи адрес прокси, чтобы использовать его только для этого аккаунта"
+    "\n• или нажми \"Без прокси\" для прямого подключения"
+)
+
+BOT_COMMANDS: List[types.BotCommand] = [
+    types.BotCommand(command="start", description="Открыть главное меню"),
+    types.BotCommand(command="add", description="Добавить аккаунт"),
+    types.BotCommand(command="accounts", description="Список аккаунтов и статусы"),
+    types.BotCommand(command="files", description="Управление файлами и шаблонами"),
+    types.BotCommand(
+        command="grant",
+        description="Выдать доступ пользователю (для супер-админов)",
+    ),
+]
+
 
 async def edit_or_send_message(
     event: events.CallbackQuery.Event, admin_id: int, text: str, *, buttons=None, **kwargs
@@ -4275,11 +4292,7 @@ async def on_cb(ev):
         await edit_or_send_message(
             ev,
             admin_id,
-            (
-                "Перед добавлением аккаунта выбери подключение:"
-                "\n• введи адрес прокси, чтобы использовать его только для этого аккаунта"
-                "\n• или нажми \"Без прокси\" для прямого подключения"
-            ),
+            ADD_ACCOUNT_PROMPT,
             buttons=account_add_proxy_menu(),
         )
         return
@@ -5193,6 +5206,47 @@ async def on_text(ev):
         cmd = parts[0].lower()
         if cmd == "/start":
             await ev.respond("Менеджер запущен. Выбери действие:", buttons=main_menu())
+        elif cmd in {"/add", "/addaccount"}:
+            pending[admin_id] = {"flow": "account", "step": "proxy_choice"}
+            await ev.respond(ADD_ACCOUNT_PROMPT, buttons=account_add_proxy_menu())
+        elif cmd in {"/accounts", "/list"}:
+            accounts = get_accounts_meta(admin_id)
+            if not accounts:
+                await ev.respond("Аккаунтов нет.", buttons=main_menu())
+                return
+            lines = ["Аккаунты:"]
+            for p, m in accounts.items():
+                worker = get_worker(admin_id, p)
+                active = bool(worker and worker.started)
+                state = m.get("state")
+                note_extra = ""
+                if m.get("state_note"):
+                    note_extra = f" ({m['state_note']})"
+                if state == "banned":
+                    status = "⛔️"
+                    note = " | заблокирован Telegram"
+                elif state == "frozen":
+                    status = "🧊"
+                    note = " | заморожен Telegram"
+                elif m.get("session_invalid"):
+                    status = "❌"
+                    note = " | требуется повторный вход"
+                elif active:
+                    status = "🟢"
+                    note = ""
+                else:
+                    status = "⚠️"
+                    note = " | неактивен"
+                proxy_label = m.get("proxy_desc") or "None"
+                if m.get("proxy_dynamic"):
+                    proxy_label = f"{proxy_label} (dyn)"
+                lines.append(
+                    f"• {status} {p} | api:{m.get('api_id')} | dev:{m.get('device','')} | proxy:{proxy_label}{note}{note_extra}"
+                )
+            await ev.respond("\n".join(lines), buttons=account_control_menu())
+        elif cmd == "/files":
+            overview_text = _build_library_overview_text(admin_id)
+            await ev.respond(overview_text, buttons=files_inline_mode_menu())
         elif cmd == "/grant":
             if not is_root_admin(admin_id):
                 await ev.respond("Команда доступна только супер-администратору.")
@@ -5699,6 +5753,16 @@ async def startup():
     else:
         username = getattr(me, "username", None)
         BOT_USERNAME = username or None
+    try:
+        await bot_client(
+            functions.bots.SetBotCommandsRequest(
+                scope=types.BotCommandScopeDefault(),
+                lang_code="",
+                commands=BOT_COMMANDS,
+            )
+        )
+    except Exception as err:
+        log.warning("Не удалось обновить меню команд: %s", err)
     log.info("Bot started. Restore workers...")
     for owner_key, tenant_data in tenants.items():
         try:
