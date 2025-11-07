@@ -1156,6 +1156,10 @@ def _build_library_file_results(
 
     # Если файлов нет — возвращаем информационную карточку (и кнопку добавления, если есть)
     if not total_count:
+        if results:
+            return results
+        if deleting:
+            return []
         msg_lines = [
             f"{label}: файлов нет.",
             "",
@@ -1186,7 +1190,7 @@ def _build_library_file_results(
             token = _register_payload(path)
             command = f"INLINE_DEL:{file_type}:{token}"
             article_text = command
-            article_title = f"🗑 {name}"
+            article_title = f"🗑 {label} — {name}"
         else:
             message_lines = [f"{label} — {name}"]
             if size_label:
@@ -1214,45 +1218,69 @@ def _build_library_file_results(
 
     return results
 
+def _inline_command_text(command: str) -> str:
+    username = BOT_USERNAME
+    if username:
+        prefix = f"@{username} "
+    else:
+        prefix = ""
+    return f"{prefix}{command}".strip()
+
+
 def _build_inline_type_results(owner_id: int, mode: str) -> List[InlineArticle]:
-    """Инлайн-экран выбора типа файлов для добавления/удаления.
+    """Инлайн-экран выбора типа файлов для добавления/удаления."""
 
-    Вызывается для запросов вида `library add` или `library delete`.
-    Кнопки внутри результата снова открывают inline-запрос уже с выбранным типом.
-    """
     normalized_mode = "add" if mode == "add" else "delete"
-    action_label = "добавления" if normalized_mode == "add" else "удаления"
 
-    text = (
-        f"Выберите тип файлов для {action_label}.\n\n"
-        "После выбора кнопки откроется новый инлайн-запрос с этим типом, "
-        "где ниже появится список файлов."
-    )
+    if normalized_mode == "add":
+        results: List[InlineArticle] = []
+        for file_type, label in FILE_TYPE_LABELS.items():
+            results.append(
+                InlineArticle(
+                    id=f"mode:add:{file_type}",
+                    title=f"➕ {label}",
+                    description="Начать добавление в эту категорию",
+                    text=f"INLINE_ADD:{file_type}",
+                )
+            )
+        return results
 
-    buttons: List[List[Button]] = [
-        [
-            library_inline_button(f"{normalized_mode} paste", "📄 Пасты ↗"),
-            library_inline_button(f"{normalized_mode} voice", "🎙 Голосовые ↗"),
-        ],
-        [
-            library_inline_button(f"{normalized_mode} video", "📹 Кружки ↗"),
-            library_inline_button(f"{normalized_mode} sticker", "💟 Стикеры ↗"),
-        ],
-    ]
+    return _build_delete_search_results(owner_id, "")
 
-    return [
-        InlineArticle(
-            id=f"mode:{normalized_mode}",
-            title=(
-                "Выбор типа файлов (добавление)"
-                if normalized_mode == "add"
-                else "Выбор типа файлов (удаление)"
-            ),
-            description="Выбор типа файла",
-            text=text,
-            buttons=buttons,
+
+def _build_delete_search_results(owner_id: int, search_term: str) -> List[InlineArticle]:
+    aggregated: List[InlineArticle] = []
+    normalized_term = " ".join(search_term.split()).strip()
+
+    for file_type in FILE_TYPE_LABELS:
+        aggregated.extend(
+            _build_library_file_results(
+                owner_id, file_type, normalized_term, mode="delete"
+            )
         )
-    ]
+        if len(aggregated) >= LIBRARY_INLINE_RESULT_LIMIT:
+            break
+
+    if not aggregated:
+        if normalized_term:
+            description = f"Нет совпадений для \"{normalized_term}\""
+        else:
+            description = "В библиотеке пока нечего удалить"
+        text = (
+            f"Удаляемых файлов по запросу \"{normalized_term}\" не найдено."
+            if normalized_term
+            else "Файлы для удаления не найдены."
+        )
+        return [
+            InlineArticle(
+                id="mode:delete:empty",
+                title="Файлы не найдены",
+                description=description,
+                text=text,
+            )
+        ]
+
+    return aggregated[:LIBRARY_INLINE_RESULT_LIMIT]
 
 def _build_library_overview_results(owner_id: int) -> List[InlineArticle]:
     """Стартовый экран инлайна для файлов.
@@ -1260,28 +1288,18 @@ def _build_library_overview_results(owner_id: int) -> List[InlineArticle]:
     При пустом запросе показываем две карточки: "Добавить" и "Удалить".
     """
 
-    # Карточка "Добавить": кнопка переводит в режим выбора типа через инлайн.
     add_article = InlineArticle(
         id="overview:add",
         title="➕ Добавить",
-        description="Добавить файл в библиотеку",
-        text=(
-            "Нажмите кнопку ниже, чтобы выбрать тип файлов для добавления.\n\n"
-            "После выбора появятся инлайн-кнопки с категориями."
-        ),
-        buttons=[[library_inline_button("add", "Выбрать тип для добавления ↗")]],
+        description="Перейти к добавлению файлов",
+        text=_inline_command_text("library add"),
     )
 
-    # Карточка "Удалить": кнопка открывает инлайн-список типов для удаления.
     delete_article = InlineArticle(
         id="overview:delete",
         title="🗑 Удалить",
-        description="Удалить файл из библиотеки",
-        text=(
-            "Нажмите кнопку ниже, чтобы выбрать тип файлов для удаления.\n\n"
-            "После выбора появится инлайн-список файлов этого типа."
-        ),
-        buttons=[[library_inline_button("delete", "Выбрать тип для удаления ↗")]],
+        description="Перейти к удалению файлов",
+        text=_inline_command_text("library delete"),
     )
 
     return [add_article, delete_article]
@@ -4120,7 +4138,8 @@ async def on_inline_query(ev):
         return
 
     # Дальше первый параметр — это уже тип файла или "all/overview"
-    category = parts[0].lower()
+    raw_category = parts[0]
+    category = raw_category.lower()
     remainder = " ".join(parts[1:]) if len(parts) > 1 else ""
 
     if category in FILE_TYPE_LABELS:
@@ -4135,10 +4154,20 @@ async def on_inline_query(ev):
             _build_library_overview_results(user_id),
         )
     else:
-        results = await _render_inline_articles(
-            ev.builder,
-            _build_library_unknown_results(category),
-        )
+        if mode == "delete":
+            search_tokens = [raw_category]
+            if remainder:
+                search_tokens.append(remainder)
+            search_term = " ".join(search_tokens)
+            results = await _render_inline_articles(
+                ev.builder,
+                _build_delete_search_results(user_id, search_term),
+            )
+        else:
+            results = await _render_inline_articles(
+                ev.builder,
+                _build_library_unknown_results(category),
+            )
 
     await ev.answer(results, cache_time=0)
 
