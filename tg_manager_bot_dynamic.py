@@ -790,6 +790,13 @@ FILE_TYPE_ADD_CALLBACK = {
     "sticker": "files_sticker",
 }
 
+FILE_TYPE_ADD_PROMPTS = {
+    "paste": "Введите название пасты:",
+    "voice": "Введите название голосового:",
+    "video": "Введите название кружка:",
+    "sticker": "Введите название стикера:",
+}
+
 
 REPLY_TEMPLATE_META: Dict[str, Dict[str, Any]] = {
     "paste": {
@@ -1133,26 +1140,38 @@ def _build_library_file_results(
     total_count = len(files)
     label = FILE_TYPE_LABELS.get(file_type, file_type.title())
 
-    # Если файлов нет — возвращаем одну информационную карточку
+    adding = mode == "add"
+    deleting = mode == "delete"
+    results: List[InlineArticle] = []
+
+    if adding:
+        results.append(
+            InlineArticle(
+                id=f"{file_type}:add",
+                title=f"➕ Добавить {label.lower()}",
+                description="Начать добавление нового файла",
+                text=f"INLINE_ADD:{file_type}",
+            )
+        )
+
+    # Если файлов нет — возвращаем информационную карточку (и кнопку добавления, если есть)
     if not total_count:
         msg_lines = [
             f"{label}: файлов нет.",
             "",
             "Добавьте файлы через меню бота.",
         ]
-        return [
-            InlineArticle(
-                id=f"{file_type}:empty",
-                title=f"{label}: нет файлов",
-                description="В этой категории пока нет файлов",
-                text="\n".join(msg_lines),
-            )
-        ]
+        empty_article = InlineArticle(
+            id=f"{file_type}:empty",
+            title=f"{label}: нет файлов",
+            description="В этой категории пока нет файлов",
+            text="\n".join(msg_lines),
+        )
+        results.append(empty_article)
+        return results
 
     # Обрезаем по лимиту
     limited = files[:LIBRARY_INLINE_RESULT_LIMIT]
-    deleting = (mode == "delete")
-    results: List[InlineArticle] = []
 
     for idx, path in enumerate(limited):
         name = os.path.basename(path)
@@ -1241,37 +1260,28 @@ def _build_library_overview_results(owner_id: int) -> List[InlineArticle]:
     При пустом запросе показываем две карточки: "Добавить" и "Удалить".
     """
 
-    # Карточка "Добавить": обычные (callback) кнопки типов файлов.
+    # Карточка "Добавить": кнопка переводит в режим выбора типа через инлайн.
     add_article = InlineArticle(
         id="overview:add",
         title="➕ Добавить",
         description="Добавить файл в библиотеку",
-        text="Выберите тип файла, который нужно добавить:",
-        buttons=files_add_menu(),
+        text=(
+            "Нажмите кнопку ниже, чтобы выбрать тип файлов для добавления.\n\n"
+            "После выбора появятся инлайн-кнопки с категориями."
+        ),
+        buttons=[[library_inline_button("add", "Выбрать тип для добавления ↗")]],
     )
 
-    # Карточка "Удалить": кнопки типов файлов — инлайн (со стрелочкой),
-    # дальше откроется список файлов этого типа.
-    delete_buttons: List[List[Button]] = [
-        [
-            library_inline_button("delete paste", "📄 Пасты ↗"),
-            library_inline_button("delete voice", "🎙 Голосовые ↗"),
-        ],
-        [
-            library_inline_button("delete video", "📹 Кружки ↗"),
-            library_inline_button("delete sticker", "💟 Стикеры ↗"),
-        ],
-    ]
-
+    # Карточка "Удалить": кнопка открывает инлайн-список типов для удаления.
     delete_article = InlineArticle(
         id="overview:delete",
         title="🗑 Удалить",
         description="Удалить файл из библиотеки",
         text=(
-            "Выберите тип файлов, которые нужно удалить.\n\n"
+            "Нажмите кнопку ниже, чтобы выбрать тип файлов для удаления.\n\n"
             "После выбора появится инлайн-список файлов этого типа."
         ),
-        buttons=delete_buttons,
+        buttons=[[library_inline_button("delete", "Выбрать тип для удаления ↗")]],
     )
 
     return [add_article, delete_article]
@@ -4096,11 +4106,16 @@ async def on_inline_query(ev):
         token = parts.pop(0).lower()
         mode = "add" if token == "add" else "delete"
 
-    # Пустой запрос -> стартовый экран с "Добавить" / "Удалить"
+    # Пустой запрос -> стартовый экран или выбор типа для add/delete
     if not parts:
-        results = await _render_inline_articles(
-            ev.builder, _build_library_overview_results(user_id)
-        )
+        if mode in {"add", "delete"}:
+            results = await _render_inline_articles(
+                ev.builder, _build_inline_type_results(user_id, mode)
+            )
+        else:
+            results = await _render_inline_articles(
+                ev.builder, _build_library_overview_results(user_id)
+            )
         await ev.answer(results, cache_time=0)
         return
 
@@ -5372,6 +5387,17 @@ async def on_text(ev):
                         except Exception as e:
                             await ev.respond(f"Не удалось удалить файл: {e}")
         # Служебное сообщение можно удалить, чтобы не мусорить
+        with contextlib.suppress(Exception):
+            await ev.delete()
+        return
+
+    if text.startswith("INLINE_ADD:"):
+        _, _, file_type = text.partition(":")
+        file_type = file_type.strip().lower()
+        if file_type in FILE_TYPE_LABELS:
+            pending[admin_id] = {"flow": "file", "file_type": file_type, "step": "name"}
+            prompt = FILE_TYPE_ADD_PROMPTS.get(file_type) or "Введите название файла:"
+            await bot_client.send_message(admin_id, prompt)
         with contextlib.suppress(Exception):
             await ev.delete()
         return
