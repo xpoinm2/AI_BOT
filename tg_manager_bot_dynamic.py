@@ -795,6 +795,9 @@ LIBRARY_INLINE_QUERY_PREFIXES = {"library", "lib", "files"}
 LIBRARY_INLINE_RESULT_LIMIT = 25
 
 
+INLINE_REPLY_SENTINEL = "\u2063INLINE_REPLY:"
+
+
 @dataclass
 class InlineArticle:
     """Minimal representation of an inline article result."""
@@ -815,6 +818,55 @@ def library_inline_button(file_type: str, label: str) -> Button:
     # behaviour by opening the inline query in the current chat instead of
     # redirecting the user to a different dialog.
     return Button.switch_inline(label, query=query, same_peer=True)
+
+
+def _reply_inline_help_article(mode: str, reason: str) -> InlineArticle:
+    mode_label = "ответа" if mode == "normal" else "реплая"
+    return InlineArticle(
+        id=f"reply_help_{mode}",
+        title=f"Нет контекста для {mode_label}",
+        description=reason,
+        text=f"ℹ️ {reason}",
+    )
+
+
+def _build_reply_inline_results(
+    admin_id: int, ctx_id: str, mode: str
+) -> List[InlineArticle]:
+    ctx_info = get_reply_context_for_admin(ctx_id, admin_id)
+    if not ctx_info:
+        return [
+            _reply_inline_help_article(
+                mode,
+                "Контекст устарел. Закрой уведомление и дождись нового.",
+            )
+        ]
+
+    mode_title = "ответ" if mode == "normal" else "реплай"
+    description = f"Аккаунт {ctx_info['phone']} • чат {ctx_info['chat_id']}"
+    return [
+        InlineArticle(
+            id=f"reply_{ctx_id}_{mode}",
+            title=f"Начать {mode_title}",
+            description=description,
+            text=(
+                f"🔄 Запускаю режим {mode_title}…\n"
+                f"{INLINE_REPLY_SENTINEL}{mode}:{ctx_id}"
+            ),
+        )
+    ]
+
+
+def _parse_reply_inline_query(query: str) -> Optional[Tuple[str, str]]:
+    parts = query.split(None, 1)
+    if not parts:
+        return None
+    token = parts[0].lower()
+    if token not in {"reply", "reply_to"}:
+        return None
+    ctx = parts[1] if len(parts) > 1 else ""
+    mode = "reply" if token == "reply_to" else "normal"
+    return ctx, mode
 
 
 def library_manage_buttons(file_type: str) -> Optional[List[List[Button]]]:
@@ -1288,6 +1340,27 @@ def build_reply_options_keyboard(ctx: str, mode: str) -> List[List[Button]]:
     return rows
 
 
+async def _activate_reply_session(admin_id: int, ctx: str, mode: str) -> Optional[str]:
+    """Prepare reply workflow for the given admin/context."""
+
+    ctx_info = get_reply_context_for_admin(ctx, admin_id)
+    if not ctx_info:
+        return "Контекст истёк"
+
+    await mark_dialog_read_for_context(ctx_info)
+
+    if reply_waiting.get(admin_id):
+        return "Уже жду сообщение"
+
+    reply_waiting[admin_id] = {"ctx": ctx, "mode": mode}
+    await show_interactive_message(
+        admin_id,
+        build_reply_prompt(ctx_info, mode),
+        buttons=build_reply_options_keyboard(ctx, mode),
+    )
+    return None
+
+
 def build_reaction_keyboard(ctx: str, mode: str) -> List[List[Button]]:
     rows: List[List[Button]] = []
     for title, emoji in REACTION_CHOICES:
@@ -1738,8 +1811,8 @@ def _build_notification_buttons(
 ) -> List[List[Button]]:
     rows: List[List[Button]] = [
         [
-            Button.inline("✉️ Ответить", f"reply:{ctx_id}".encode()),
-            Button.inline("↩️ Реплай", f"reply_to:{ctx_id}".encode()),
+            Button.switch_inline("✉️ Ответить", query=f"reply {ctx_id}", same_peer=True),
+            Button.switch_inline("↩️ Реплай", query=f"reply_to {ctx_id}", same_peer=True),
         ],
         *(_library_inline_rows()),
         [Button.inline("👀 Прочитать", f"mark_read:{ctx_id}".encode())],
@@ -3923,6 +3996,18 @@ async def on_inline_query(ev):
         return
 
     raw_query = (ev.text or "").strip()
+
+    reply_query = _parse_reply_inline_query(raw_query)
+    if reply_query is not None:
+        ctx_id, mode = reply_query
+        if not ctx_id:
+            results = [_reply_inline_help_article(mode, "Нажми кнопку в уведомлении ещё раз.")]
+        else:
+            results = _build_reply_inline_results(user_id, ctx_id, mode)
+        rendered = await _render_inline_articles(ev.builder, results)
+        await ev.answer(rendered, cache_time=0)
+        return
+
     parts = raw_query.split()
     # Сносим префикс library / files / file / lib
     if parts and parts[0].lower() in LIBRARY_INLINE_QUERY_PREFIXES:
@@ -4634,22 +4719,12 @@ async def on_cb(ev):
 
     if data.startswith("reply:") or data.startswith("reply_to:"):
         ctx = data.split(":", 1)[1]
-        ctx_info = get_reply_context_for_admin(ctx, admin_id)
-        if not ctx_info:
-            await answer_callback(ev, "Контекст истёк", alert=True)
-            return
-        await mark_dialog_read_for_context(ctx_info)
-        if reply_waiting.get(admin_id):
-            await answer_callback(ev, "Уже жду сообщение", alert=True)
-            return
         mode = "reply" if data.startswith("reply_to:") else "normal"
-        reply_waiting[admin_id] = {"ctx": ctx, "mode": mode}
-        await answer_callback(ev)
-        await show_interactive_message(
-            admin_id,
-            build_reply_prompt(ctx_info, mode),
-            buttons=build_reply_options_keyboard(ctx, mode),
-        )
+        error = await _activate_reply_session(admin_id, ctx, mode)
+        if error:
+            await answer_callback(ev, error, alert=True)
+        else:
+            await answer_callback(ev)
         return
 
     if data.startswith("reply_reaction_menu:"):
@@ -5188,6 +5263,19 @@ async def on_text(ev):
     text = (ev.raw_text or "").strip()
 
     await ensure_menu_button_hidden(admin_id)
+
+    sentinel_index = text.find(INLINE_REPLY_SENTINEL)
+    if sentinel_index != -1:
+        payload = text[sentinel_index + len(INLINE_REPLY_SENTINEL) :]
+        mode_token, _, ctx = payload.partition(":")
+        mode = "reply" if mode_token == "reply" else "normal"
+        if ctx:
+            error = await _activate_reply_session(admin_id, ctx, mode)
+            if error:
+                await send_temporary_message(admin_id, f"❌ {error}")
+        with contextlib.suppress(Exception):
+            await ev.delete()
+        return
 
     # Инлайновое удаление файла (служебное сообщение из inline-результата)
     if text.startswith("INLINE_DEL:"):
