@@ -3590,28 +3590,31 @@ def main_menu():
     return [
         [Button.inline("➕ Добавить аккаунт", b"add")],
         [Button.inline("📋 Список аккаунтов", b"list")],
-        [
-            Button.inline("📁 Файлы", b"files"),
-            library_inline_button("overview", "📁 Файлы ↗"),
-        ],
+        [Button.inline("📁 Файлы", b"files")],
         [Button.inline("🧪 Ping", b"ping")],
     ]
 
 
 def files_root_menu() -> List[List[Button]]:
     return [
-        [Button.inline("➕ Добавить", b"files_add")],
-        [Button.inline("🗑 Удалить", b"files_delete")],
+        [
+            Button.inline("➕ Добавить", b"files_add"),
+            Button.inline("🗑 Удалить", b"files_delete"),
+        ],
         [Button.inline("⬅️ Назад", b"back")],
     ]
 
 
 def files_add_menu() -> List[List[Button]]:
     return [
-        [Button.inline("📄 Пасты", b"files_paste")],
-        [Button.inline("🎙 Голосовые", b"files_voice")],
-        [Button.inline("📹 Кружки", b"files_video")],
-        [Button.inline("💟 Стикеры", b"files_sticker")],
+        [
+            Button.inline("📄 Пасты", b"files_paste"),
+            Button.inline("🎙 Голосовые", b"files_voice"),
+        ],
+        [
+            Button.inline("📹 Кружки", b"files_video"),
+            Button.inline("💟 Стикеры", b"files_sticker"),
+        ],
         [Button.inline("⬅️ Назад", b"files_root")],
     ]
 
@@ -3620,19 +3623,11 @@ def files_delete_menu() -> List[List[Button]]:
     return [
         [
             Button.inline("📄 Пасты", b"files_delete_paste"),
-            library_inline_button("paste", "📄 Пасты ↗"),
-        ],
-        [
             Button.inline("🎙 Голосовые", b"files_delete_voice"),
-            library_inline_button("voice", "🎙 Голосовые ↗"),
         ],
         [
             Button.inline("📹 Кружки", b"files_delete_video"),
-            library_inline_button("video", "📹 Кружки ↗"),
-        ],
-        [
             Button.inline("💟 Стикеры", b"files_delete_sticker"),
-            library_inline_button("sticker", "💟 Стикеры ↗"),
         ],
         [Button.inline("⬅️ Назад", b"files_root")],
     ]
