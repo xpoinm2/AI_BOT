@@ -3,69 +3,33 @@ from __future__ import annotations
 import asyncio
 import base64
 import contextlib
-import dataclasses
-import datetime as dt
+import os
 import json
 import logging
-import os
-import random
-import re
-import secrets
-import string
 import sys
-import textwrap
-import time
-from logging.handlers import RotatingFileHandler
+import random
+import secrets
+import html
+import re
+import shutil
+import socket
+import mimetypes
+from dataclasses import dataclass
+from datetime import datetime
 from collections import OrderedDict, defaultdict
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import (
-    Any,
-    AsyncGenerator,
-    Awaitable,
-    Dict,
-    Iterable,
-    List,
-    Optional,
-    Tuple,
-    Union,
-    TYPE_CHECKING,
-    Set,
-)
-
-
-from telethon import Button, TelegramClient, events
-from telethon.errors import (
-    AuthKeyDuplicatedError,
-    ChannelPrivateError,
-    ChatAdminRequiredError,
-    ChatWriteForbiddenError,
-    FloodWaitError,
-    MessageNotModifiedError,
-    MessageTooLongError,
-    UserIsBlockedError,
-)
+from logging.handlers import RotatingFileHandler
+from typing import Dict, Optional, Any, List, Tuple, Set, TYPE_CHECKING
+from io import BytesIO
+from telethon import TelegramClient, events, Button, functions, helpers, types
+from OpenAi_helper import gpt_answer, gpt_answer_variants
+from telethon.utils import get_display_name
 from telethon.sessions import StringSession
-from telethon.tl.custom.message import Message
-from telethon.tl.functions.account import UpdateProfileRequest
-from telethon.tl.functions.channels import GetFullChannelRequest
-from telethon.tl.functions.messages import GetHistoryRequest
-from telethon.tl.types import (
-    DocumentAttributeAudio,
-    DocumentAttributeFilename,
-    InputPeerChannel,
-    InputPeerChat,
-    InputPeerUser,
-    MessageMediaDocument,
-    MessageMediaPhoto,
-    MessageMediaUnsupported,
-    MessageMediaWebPage,
-    PeerChannel,
-    PeerChat,
-    PeerUser,
-    ReplyKeyboardMarkup,
-    User,
+from telethon.errors import (
+    SessionPasswordNeededError,
+    FloodWaitError,
+    PeerIdInvalidError,
 )
+
 try:  # Telethon <= 1.33.1
     from telethon.errors import QueryIdInvalidError  # type: ignore[attr-defined]
 except ImportError:  # Telethon >= 1.34 moved/renamed the error
