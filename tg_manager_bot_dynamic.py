@@ -1062,6 +1062,45 @@ def _build_library_file_results(
 
     return results
 
+def _build_inline_type_results(owner_id: int, mode: str) -> List[InlineArticle]:
+    """Инлайн-экран выбора типа файлов для добавления/удаления.
+
+    Вызывается для запросов вида `library add` или `library delete`.
+    Кнопки внутри результата снова открывают inline-запрос уже с выбранным типом.
+    """
+    normalized_mode = "add" if mode == "add" else "delete"
+    action_label = "добавления" if normalized_mode == "add" else "удаления"
+
+    text = (
+        f"Выберите тип файлов для {action_label}.\n\n"
+        "После выбора кнопки откроется новый инлайн-запрос с этим типом, "
+        "где ниже появится список файлов."
+    )
+
+    buttons: List[List[Button]] = [
+        [
+            library_inline_button(f"{normalized_mode} paste", "📄 Пасты ↗"),
+            library_inline_button(f"{normalized_mode} voice", "🎙 Голосовые ↗"),
+        ],
+        [
+            library_inline_button(f"{normalized_mode} video", "📹 Кружки ↗"),
+            library_inline_button(f"{normalized_mode} sticker", "💟 Стикеры ↗"),
+        ],
+    ]
+
+    return [
+        InlineArticle(
+            id=f"mode:{normalized_mode}",
+            title=(
+                "Выбор типа файлов (добавление)"
+                if normalized_mode == "add"
+                else "Выбор типа файлов (удаление)"
+            ),
+            description="Выбор типа файла",
+            text=text,
+            buttons=buttons,
+        )
+    ]
 
 def _build_library_overview_results(owner_id: int) -> List[InlineArticle]:
     """Стартовый экран инлайна — одна карточка 'Файловый менеджер'."""
@@ -3632,6 +3671,22 @@ def files_root_menu() -> List[List[Button]]:
     ]
 
 
+def files_inline_mode_menu() -> List[List[Button]]:
+    """Инлайновое меню режимов работы с файлами.
+
+    Кнопки здесь не отправляют новое сообщение в чат, а открывают
+    inline-запрос вида `library add` / `library delete` в текущем диалоге.
+    """
+    return [
+        [
+            library_inline_button("add", "➕ Добавить ↗"),
+            library_inline_button("delete", "🗑 Удалить ↗"),
+        ],
+        [library_inline_button("", "📁 Все файлы ↗")],
+        [Button.inline("⬅️ Назад", b"back")],
+    ]
+
+
 def files_add_menu() -> List[List[Button]]:
     return [
         [
@@ -3658,6 +3713,7 @@ def files_delete_menu() -> List[List[Button]]:
         ],
         [Button.inline("⬅️ Назад", b"files_root")],
     ]
+
 
 
 def _mask_secret(value: Optional[str]) -> str:
@@ -3762,10 +3818,23 @@ async def on_inline_query(ev):
     if parts and parts[0].lower() in LIBRARY_INLINE_QUERY_PREFIXES:
         parts = parts[1:]
 
+    mode: Optional[str] = None
+    if parts and parts[0].lower() in {"add", "delete", "del", "remove"}:
+        token = parts.pop(0).lower()
+        mode = "add" if token == "add" else "delete"
+
+    # Ничего кроме режима не указано -> показываем выбор типа файлов
     if not parts:
-        results = await _render_inline_articles(
-            ev.builder, _build_library_overview_results(user_id)
-        )
+        if mode:
+            results = await _render_inline_articles(
+                ev.builder,
+                _build_inline_type_results(user_id, mode),
+            )
+        else:
+            results = await _render_inline_articles(
+                ev.builder,
+                _build_library_overview_results(user_id),
+            )
         await ev.answer(results, cache_time=0)
         return
 
@@ -3773,6 +3842,7 @@ async def on_inline_query(ev):
     remainder = " ".join(parts[1:]) if len(parts) > 1 else ""
 
     if category in FILE_TYPE_LABELS:
+        # library paste / library add paste / library delete paste
         results = await _render_inline_articles(
             ev.builder,
             _build_library_file_results(user_id, category, remainder),
@@ -3789,6 +3859,7 @@ async def on_inline_query(ev):
         )
 
     await ev.answer(results, cache_time=0)
+
 
 
 @bot_client.on(events.NewMessage(pattern="/start"))
@@ -4101,7 +4172,7 @@ async def on_cb(ev):
             ev,
             admin_id,
             overview_text,
-            buttons=files_root_menu(),
+            buttons=files_inline_mode_menu(),
         )
         return
 
@@ -4112,7 +4183,7 @@ async def on_cb(ev):
             ev,
             admin_id,
             overview_text,
-            buttons=files_root_menu(),
+            buttons=files_inline_mode_menu(),
         )
         return
 
