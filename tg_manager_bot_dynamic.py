@@ -1103,24 +1103,54 @@ def _build_inline_type_results(owner_id: int, mode: str) -> List[InlineArticle]:
     ]
 
 def _build_library_overview_results(owner_id: int) -> List[InlineArticle]:
-    """Стартовый экран инлайна — одна карточка 'Файловый менеджер'."""
-    intro_text = (
-        "📁 Файловый менеджер\n\n"
-        "Выбери действие:\n"
-        "• ➕ Добавить — сохранить новый файл\n"
-        "• 🗑 Удалить — убрать существующий файл\n\n"
-        "Дальше всё управление идёт через кнопки под этим сообщением."
+    """
+    Стартовый экран инлайна для файлов.
+
+    Вызывается, когда инлайн-запрос пустой:
+    - просто нажали на кнопку "📁 Файлы ↗"
+    - или ввели @бот и выбрали его без текста.
+    Показываем две карточки: "Добавить" и "Удалить".
+    """
+
+    def _mode_buttons(mode: str) -> List[List[Button]]:
+        """
+        Кнопки выбора типа файла для указанного режима:
+        mode == 'add'   -> library add paste/voice/video/sticker
+        mode == 'delete'-> library delete paste/voice/video/sticker
+        Все кнопки — со стрелочкой (inline), без callback.
+        """
+        normalized_mode = "add" if mode == "add" else "delete"
+
+        return [
+            [
+                library_inline_button(f"{normalized_mode} paste", "📄 Пасты ↗"),
+                library_inline_button(f"{normalized_mode} voice", "🎙 Голосовые ↗"),
+            ],
+            [
+                library_inline_button(f"{normalized_mode} video", "📹 Кружки ↗"),
+                library_inline_button(f"{normalized_mode} sticker", "💟 Стикеры ↗"),
+            ],
+        ]
+
+    # Карточка "Добавить"
+    add_article = InlineArticle(
+        id="overview:add",
+        title="➕ Добавить",
+        description="Добавить файл в библиотеку",
+        text="Выберите тип файла, который нужно добавить:",
+        buttons=_mode_buttons("add"),
     )
 
-    return [
-        InlineArticle(
-            id="overview:manager",
-            title="📁 Файловый менеджер",
-            description="Добавить или удалить файлы",
-            text=intro_text,
-            buttons=files_root_menu(),  # тут уже 'Добавить' / 'Удалить' и т.п.
-        )
-    ]
+    # Карточка "Удалить"
+    delete_article = InlineArticle(
+        id="overview:delete",
+        title="🗑 Удалить",
+        description="Удалить файл из библиотеки",
+        text="Выберите тип файла, который нужно удалить:",
+        buttons=_mode_buttons("delete"),
+    )
+
+    return [add_article, delete_article]
 
 
 def _build_library_unknown_results(query: str) -> List[InlineArticle]:
