@@ -1064,22 +1064,23 @@ def _build_library_file_results(
 
 
 def _build_library_overview_results(owner_id: int) -> List[InlineArticle]:
-    files_by_type = {ft: list_templates_by_type(owner_id, ft) for ft in FILE_TYPE_LABELS}
-    total = sum(len(items) for items in files_by_type.values())
-
-    intro_lines = ["📁 Доступные файлы:"]
-    for ft, label in FILE_TYPE_LABELS.items():
-        intro_lines.append(f"• {label}: {len(files_by_type[ft])}")
-    intro_lines.append("")
-    intro_lines.append("Выберите категорию ниже, чтобы увидеть список конкретных файлов.")
-
-    results: List[InlineArticle] = [
+    # Стартовый экран инлайна: только "Добавить" и "Удалить".
+    # Дальше используется уже существующая логика меню файлов.
+    return [
         InlineArticle(
-            id="overview:summary",
-            title=f"Всего файлов: {total}",
-            description="Разбивка по категориям",
-            text="\n".join(intro_lines),
-        )
+            id="overview:add",
+            title="➕ Добавить",
+            description="Сохранить новый файл в библиотеке",
+            text="Выберите тип файла, который нужно добавить:",
+            buttons=files_add_menu(),
+        ),
+        InlineArticle(
+            id="overview:delete",
+            title="🗑 Удалить",
+            description="Удалить файл из библиотеки",
+            text="Выберите тип файла, который нужно удалить:",
+            buttons=files_delete_menu(),
+        ),
     ]
 
     for ft, files in files_by_type.items():
