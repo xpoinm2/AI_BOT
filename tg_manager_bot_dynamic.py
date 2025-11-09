@@ -3369,36 +3369,6 @@ def _format_ai_chosen_for_admin(task_id: str, pr: PendingAIReply):
     return text, buttons
 
 
-TYPICAL_PATTERNS: Dict[str, List[str]] = {
-    "привет": [
-        "Привет 🙂",
-        "Привет! Как дела?",
-    ],
-    "здравствуйте": [
-        "Здравствуйте!",
-        "Здравствуйте! Чем могу быть полезен?",
-    ],
-    "как дела": [
-        "Все отлично, спасибо! У вас как?",
-        "Супер, а у вас как настроение?",
-    ],
-}
-
-
-def _normalize_text_for_ai(text: str) -> str:
-    text = (text or "").lower()
-    text = re.sub(r"[^а-яa-z0-9]+", " ", text)
-    return text.strip()
-
-
-def get_template_reply(text: str) -> Optional[str]:
-    norm = _normalize_text_for_ai(text)
-    for key, variants in TYPICAL_PATTERNS.items():
-        if key in norm:
-            return random.choice(variants)
-    return None
-
-
 async def handle_ai_autoreply(worker: "AccountWorker", ev, peer) -> None:
     # Не отвечаем на исходящие и не-личные чаты
     try:
@@ -3411,25 +3381,6 @@ async def handle_ai_autoreply(worker: "AccountWorker", ev, peer) -> None:
 
     user_text = (getattr(ev, "raw_text", None) or "").strip()
     if not user_text:
-        return
-
-    # 1) Пробуем простой шаблон
-    template = get_template_reply(user_text)
-    if template:
-        try:
-            await worker.send_outgoing(
-                chat_id=ev.chat_id,
-                message=template,
-                peer=peer,
-                reply_to_msg_id=ev.id,
-                mark_read_msg_id=ev.id,
-            )
-        except Exception as send_err:
-            log.warning(
-                "[%s] ошибка отправки шаблонного автоответа: %s",
-                worker.phone,
-                send_err,
-            )
         return
 
     # Подготовка профиля и истории для промпта
