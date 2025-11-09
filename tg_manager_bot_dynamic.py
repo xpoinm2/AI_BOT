@@ -4008,8 +4008,8 @@ def account_control_menu():
 
 def account_add_proxy_menu() -> List[List[Button]]:
     return [
-        [Button.inline("🧷 Ввести прокси", b"account_proxy_manual")],
-        [Button.inline("🚫 Без прокси", b"account_proxy_none")],
+        [Button.inline("Ввести прокси", b"account_proxy_manual")],
+        [Button.inline("Без прокси", b"account_proxy_none")],
         [Button.inline("⬅️ Отмена", b"account_proxy_cancel")],
     ]
 
@@ -5398,6 +5398,13 @@ async def on_text(ev):
                 with contextlib.suppress(Exception):
                     await ev.delete()
                 return
+
+        rendered = _render_library_command(admin_id, library_query)
+        if rendered:
+            await bot_client.send_message(admin_id, rendered)
+        with contextlib.suppress(Exception):
+            await ev.delete()
+        return
 
     if text.startswith("INLINE_ADD:"):
         _, _, file_type = text.partition(":")
