@@ -5371,6 +5371,34 @@ async def on_text(ev):
             await ev.delete()
         return
 
+    library_query = _extract_library_command_query(text)
+    if library_query:
+        tokens = library_query.split()
+        if tokens and tokens[0].lower() in LIBRARY_INLINE_QUERY_PREFIXES:
+            tokens = tokens[1:]
+
+        if len(tokens) == 1:
+            mode_token = tokens[0].lower()
+            if mode_token == "add":
+                await bot_client.send_message(
+                    admin_id,
+                    "Выбери тип файлов для сохранения:",
+                    buttons=files_add_menu(),
+                )
+                with contextlib.suppress(Exception):
+                    await ev.delete()
+                return
+
+            if mode_token in {"delete", "del", "remove"}:
+                await bot_client.send_message(
+                    admin_id,
+                    "Выбери тип файлов для удаления:",
+                    buttons=files_delete_menu(),
+                )
+                with contextlib.suppress(Exception):
+                    await ev.delete()
+                return
+
     if text.startswith("INLINE_ADD:"):
         _, _, file_type = text.partition(":")
         file_type = file_type.strip().lower()
