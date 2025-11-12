@@ -1,7 +1,8 @@
 import os
 import logging
+import re
 from datetime import datetime
-from typing import Optional, Literal, List, Sequence
+from typing import Optional, Literal, List, Sequence, Tuple
 
 from openai import AsyncOpenAI
 
@@ -378,3 +379,73 @@ async def generate_dating_ai_variants(
             processed.append(candidate)
 
     return processed
+
+
+async def recommend_dating_ai_variant(
+    *,
+    incoming_text: str,
+    variants: Sequence[str],
+    history_lines: Sequence[str],
+    profile: Optional[str] = None,
+    api_key: Optional[str] = None,
+    model: OpenAIModel = "gpt-4o",
+    temperature: float = 0.4,
+    max_tokens: Optional[int] = 250,
+) -> Tuple[Optional[int], Optional[str]]:
+    """Определяет, какой из трёх вариантов ответа выглядит наиболее подходящим."""
+
+    clean_variants = [str(v).strip() for v in variants if str(v).strip()]
+    if len(clean_variants) < 1:
+        return None, None
+
+    history_block = "\n".join(history_lines).strip()
+    if history_block:
+        history_block = (
+            "История переписки (от старых сообщений к новым):\n"
+            f"{history_block}\n\n"
+        )
+
+    variants_lines = [f"{i}) {v}" for i, v in enumerate(clean_variants, start=1)]
+    variants_block = "\n".join(variants_lines)
+
+    profile_text = (profile or "Описание профиля не указано.").strip()
+
+    user_prompt = (
+        "Ты помогаешь оператору переписки девушки выбрать лучший ответ на сообщение потенциального парня.\n"
+        f"Описание девушки: {profile_text}\n"
+        f"Входящее сообщение от собеседника: {incoming_text}\n\n"
+        f"{history_block}"
+        "Варианты ответов девушки:\n"
+        f"{variants_block}\n\n"
+        "Рекомендации должны быть такие, чтобы максимально близиться с человеком, для того, чтобы получить его доверие максимально быстро, максимально скорее, более того, рассуждения нужны либо после одного большого предложения со смыслом, либо после пары предложений, ну тоже как бы со смыслом.\n"
+        "Ответь на русском языке. Сформулируй рекомендацию в одном или двух предложениях. В первом предложении однозначно укажи номер рекомендуемого варианта в формате «Рекомендую вариант 2 …»."
+    )
+
+    recommendation_text = await gpt(
+        model=model,
+        system_prompt=(
+            "Ты — эмпатичный помощник, который выбирает самый располагающий вариант ответа."
+        ),
+        user_prompt=user_prompt,
+        api_key=api_key,
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
+
+    recommendation_text = (recommendation_text or "").strip()
+    if not recommendation_text:
+        return None, None
+
+    match = re.search(r"вариант\s*№?\s*([123])", recommendation_text, flags=re.IGNORECASE)
+    if not match:
+        match = re.search(r"\b([123])\b", recommendation_text)
+
+    if match:
+        idx = int(match.group(1)) - 1
+    else:
+        idx = None
+
+    if idx is not None and (idx < 0 or idx >= len(clean_variants)):
+        idx = None
+
+    return idx, recommendation_text

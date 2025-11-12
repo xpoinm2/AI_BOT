@@ -21,7 +21,7 @@ from logging.handlers import RotatingFileHandler
 from typing import Dict, Optional, Any, List, Tuple, Set, TYPE_CHECKING, Callable, cast
 from io import BytesIO
 from telethon import TelegramClient, events, Button, functions, helpers, types
-from OpenAi_helper import generate_dating_ai_variants
+from OpenAi_helper import generate_dating_ai_variants, recommend_dating_ai_variant
 from telethon.utils import get_display_name
 from telethon.sessions import StringSession
 from telethon.errors import (
@@ -3317,6 +3317,8 @@ class PendingAIReply:
     suggested_variants: List[str]
     # -1 = админ ещё не выбрал вариант
     chosen_index: int = -1
+    recommended_index: Optional[int] = None
+    recommendation_text: Optional[str] = None
 
 
 pending_ai_replies: Dict[str, PendingAIReply] = {}
@@ -3341,8 +3343,28 @@ def _format_ai_variants_for_admin(task_id: str, pr: PendingAIReply):
     ]
 
     for i, v in enumerate(variants, start=1):
-        lines.append(f"{i}) {v}")
+        suffix = ""
+        if pr.recommended_index is not None and pr.recommended_index == i - 1:
+            suffix = "  ⭐️"
+        lines.append(f"{i}) {v}{suffix}")
         lines.append("")
+
+    if pr.recommendation_text:
+        lines.extend(
+            [
+                "🤖 Рекомендация ИИ:",
+                pr.recommendation_text,
+                "",
+            ]
+        )
+    elif pr.recommended_index is not None:
+        lines.extend(
+            [
+                "🤖 Рекомендация ИИ:",
+                f"Рекомендован вариант №{pr.recommended_index + 1}.",
+                "",
+            ]
+        )
 
     lines.append(
         "Выбери один из вариантов кнопками ниже.\n"
@@ -3384,6 +3406,23 @@ def _format_ai_chosen_for_admin(task_id: str, pr: PendingAIReply):
         pr.incoming_text,
         "",
     ]
+
+    if pr.recommendation_text:
+        lines.extend(
+            [
+                "🤖 Рекомендация ИИ:",
+                pr.recommendation_text,
+                "",
+            ]
+        )
+    elif pr.recommended_index is not None:
+        lines.extend(
+            [
+                "🤖 Рекомендация ИИ:",
+                f"Рекомендован вариант №{pr.recommended_index + 1}.",
+                "",
+            ]
+        )
 
     if num > 0:
         lines.extend(
@@ -3496,6 +3535,28 @@ async def handle_ai_autoreply(worker: "AccountWorker", ev, peer) -> None:
     while len(cleaned) < 3:
         cleaned.append(cleaned[-1])
 
+    recommended_index: Optional[int] = None
+    recommendation_text: Optional[str] = None
+
+    try:
+        rec_idx, rec_text = await recommend_dating_ai_variant(
+            incoming_text=user_text,
+            variants=cleaned,
+            history_lines=history_lines,
+            profile=profile_description,
+            model="gpt-4o",
+            temperature=0.4,
+        )
+    except Exception as rec_err:
+        log.debug(
+            "[%s] не удалось получить рекомендацию варианта: %s",
+            worker.phone,
+            rec_err,
+        )
+    else:
+        recommended_index = rec_idx
+        recommendation_text = rec_text
+
     task_id = f"{worker.owner_id}:{worker.phone}:{ev.chat_id}:{ev.id}"
     pr = PendingAIReply(
         owner_id=worker.owner_id,
@@ -3504,6 +3565,8 @@ async def handle_ai_autoreply(worker: "AccountWorker", ev, peer) -> None:
         msg_id=ev.id,
         incoming_text=user_text,
         suggested_variants=cleaned,
+        recommended_index=recommended_index,
+        recommendation_text=recommendation_text,
     )
     pending_ai_replies[task_id] = pr
 
