@@ -552,6 +552,34 @@ def _rand_delay(span: Tuple[int, int]) -> float:
         return float(low)
     return random.uniform(low, high)
 
+
+def _describe_sent_code_type(code_type: Optional[Any]) -> Optional[str]:
+    if code_type is None:
+        return None
+
+    auth_types = getattr(types, "auth", None)
+    mapping: List[Tuple[Optional[type], str]] = []
+    if auth_types is not None:
+        mapping = [
+            (getattr(auth_types, "SentCodeTypeApp", None), "app"),
+            (getattr(auth_types, "SentCodeTypeSms", None), "sms"),
+            (getattr(auth_types, "SentCodeTypeCall", None), "call"),
+            (getattr(auth_types, "SentCodeTypeFlashCall", None), "flash_call"),
+            (getattr(auth_types, "SentCodeTypeMissedCall", None), "missed_call"),
+            (getattr(auth_types, "SentCodeTypeEmailCode", None), "email"),
+            (getattr(auth_types, "SentCodeTypeFirebaseSms", None), "sms"),
+            (getattr(auth_types, "SentCodeTypeSmsWord", None), "sms"),
+            (getattr(auth_types, "SentCodeTypeFragmentSms", None), "sms"),
+        ]
+    for cls, label in mapping:
+        if cls is not None and isinstance(code_type, cls):
+            return label
+    # Fallback to class name string for logging/diagnostics
+    name = getattr(getattr(code_type, "__class__", type(code_type)), "__name__", None)
+    if isinstance(name, str):
+        return name.lower()
+    return "unknown"
+
 def _typing_duration(message: str) -> float:
     message = message or ""
     stripped = message.strip()
@@ -2144,6 +2172,7 @@ class AccountWorker:
         self._proxy_force_reason: Optional[str] = None
         self._send_queue: asyncio.Queue = asyncio.Queue()
         self._send_worker_task: Optional[asyncio.Task] = None
+        self._last_code_delivery: Optional[str] = None
 
     def _reset_session_state(self) -> None:
         with contextlib.suppress(FileNotFoundError):
@@ -2807,6 +2836,7 @@ class AccountWorker:
     async def send_code(self):
         await self._ensure_client()
         await asyncio.sleep(_rand_delay(LOGIN_DELAY_SECONDS))
+        self._last_code_delivery = None
         try:
             result = await self.client.send_code_request(self.phone)
         except (UserDeactivatedBanError, PhoneNumberBannedError) as e:
@@ -2827,6 +2857,7 @@ class AccountWorker:
             raise
         if isinstance(result, types.auth.SentCode):
             code_type = getattr(result, "type", None)
+            self._last_code_delivery = _describe_sent_code_type(code_type)
             if isinstance(code_type, types.auth.SentCodeTypeApp):
                 try:
                     forced = await self.client.send_code_request(self.phone, force_sms=True)
@@ -2852,7 +2883,17 @@ class AccountWorker:
                     )
                 else:
                     result = forced
+                    forced_type = getattr(forced, "type", None)
+                    self._last_code_delivery = (
+                        "sms_forced"
+                        if isinstance(forced_type, types.auth.SentCodeTypeSms)
+                        else _describe_sent_code_type(forced_type)
+                    )
         return result
+
+    @property
+    def code_delivery_hint(self) -> Optional[str]:
+        return self._last_code_delivery
 
     async def sign_in_code(self, code: str):
         await asyncio.sleep(_rand_delay(LOGIN_DELAY_SECONDS))
@@ -5937,7 +5978,27 @@ async def on_text(ev):
                 meta["proxy_desc"] = w.proxy_description
                 persist_tenants()
 
-                response_lines = extra_lines + [f"Код отправлен на {phone}. Пришли код."]
+                delivery_hint = w.code_delivery_hint
+                hint_lines: List[str] = []
+                if delivery_hint == "sms_forced":
+                    hint_lines.append(
+                        "⚠️ Если код уже пришёл в приложение Telegram — он больше не действителен."
+                        " Дождись SMS и введи код из SMS."
+                    )
+                elif delivery_hint == "sms":
+                    hint_lines.append("ℹ️ Код отправлен по SMS. Обычно он приходит в течение пары минут.")
+                elif delivery_hint == "app":
+                    hint_lines.append(
+                        "ℹ️ Код отправлен в Telegram. Если удобнее получить SMS, нажми Отмена и попробуй ещё раз."
+                    )
+                elif delivery_hint in {"call", "flash_call", "missed_call"}:
+                    hint_lines.append(
+                        "ℹ️ Код поступит звонком. Ответь и запомни названные цифры."
+                    )
+                elif delivery_hint == "email":
+                    hint_lines.append("ℹ️ Код придёт на e-mail, привязанный к аккаунту.")
+
+                response_lines = extra_lines + [f"Код отправлен на {phone}. Пришли код."] + hint_lines
                 pending[admin_id] = {
                     "flow": "account",
                     "step": "code",
