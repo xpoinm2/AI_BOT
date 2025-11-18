@@ -4017,7 +4017,6 @@ def main_menu():
         [Button.inline("➕ Добавить аккаунт", b"add")],
         [Button.inline("📋 Список аккаунтов", b"list")],
         [library_inline_button("", "📁 Файлы ↗")],
-        [Button.inline("🧪 Ping", b"ping")],
     ]
 
 
@@ -5412,9 +5411,6 @@ async def on_cb(ev):
         await answer_callback(ev)
         return
 
-    if data == "ping":
-        await answer_callback(ev); await bot_client.send_message(admin_id, "✅ OK", buttons=main_menu()); return
-
 @bot_client.on(events.NewMessage)
 
 async def on_text(ev):
@@ -5564,7 +5560,7 @@ async def on_text(ev):
         cmd_full = parts[0].lower()
         cmd_base = cmd_full.split("@", 1)[0]
         if cmd_base == "/start":
-            await ev.respond("Менеджер запущен. Выбери действие:", buttons=main_menu())
+            return
         elif cmd_base in {"/add", "/addaccount"}:
             pending[admin_id] = {"flow": "account", "step": "proxy_choice"}
             await ev.respond(ADD_ACCOUNT_PROMPT, buttons=account_add_proxy_menu())
