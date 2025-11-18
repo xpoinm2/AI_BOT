@@ -117,10 +117,11 @@ BOT_USERNAME: Optional[str] = None
 # Изначальные супер-администраторы, которые могут выдавать доступ другим пользователям
 ROOT_ADMIN_IDS = {8099997426, 7519364639}
 
-# ДИНАМИЧЕСКИЙ ПРОКСИ: одна точка, новый IP выдаётся провайдером при новом соединении
+# Статичный приватный SOCKS5-прокси (используется ботом и как дефолт для аккаунтов)
 # Если боту прокси не нужен — enabled=False
-DYNAMIC_PROXY = {
+PRIVATE_PROXY = {
     "enabled": True,
+    "dynamic": False,
     "type": "SOCKS5",  # "SOCKS5" или "HTTP"
     "host": "185.162.130.86",
     "port": 10000,
@@ -1594,8 +1595,8 @@ def _proxy_tuple_from_config(config: Optional[Dict[str, Any]], *, context: str =
     return (proxy_const, host, port_int, rdns, username, password)
 
 
-def build_dynamic_proxy_tuple() -> Optional[Tuple]:
-    return _proxy_tuple_from_config(DYNAMIC_PROXY, context="dynamic")
+def build_private_proxy_tuple() -> Optional[Tuple]:
+    return _proxy_tuple_from_config(PRIVATE_PROXY, context="default")
 
 
 def proxy_desc(p: Optional[Tuple]) -> str:
@@ -1680,16 +1681,16 @@ def build_bot_proxy_config() -> Dict[str, Any]:
     without the optional credentials.  When the upstream provider requires
     authentication this resulted in ``GeneralProxyError`` during start-up,
     because the proxy rejected the unauthenticated SOCKS5 handshake.  Reuse the
-    dynamic proxy values instead so the bot client benefits from the same
+    ``PRIVATE_PROXY`` values instead so the bot client benefits from the same
     credentials (while still allowing manual overrides by editing the returned
     mapping).
     """
 
     base: Dict[str, Any] = {}
-    if isinstance(DYNAMIC_PROXY, dict):
-        base.update(DYNAMIC_PROXY)
+    if isinstance(PRIVATE_PROXY, dict):
+        base.update(PRIVATE_PROXY)
 
-    # If the dynamic proxy config was disabled entirely fall back to the
+    # If the proxy config was disabled entirely fall back to the
     # default behaviour of running without a proxy (``enabled`` evaluates to
     # False downstream and ``_proxy_tuple_from_config`` will return ``None``).
     base.setdefault("enabled", True)
@@ -2110,10 +2111,10 @@ def resolve_proxy_for_account(owner_id: int, phone: str, meta: Dict[str, Any]) -
                 warnings.append(("tenant_invalid", None))
 
     if proxy_tuple is None and override_enabled:
-        dynamic_tuple = build_dynamic_proxy_tuple()
-        if dynamic_tuple is not None:
-            proxy_tuple = dynamic_tuple
-            is_dynamic = True
+        default_tuple = build_private_proxy_tuple()
+        if default_tuple is not None:
+            proxy_tuple = default_tuple
+            is_dynamic = bool(PRIVATE_PROXY.get("dynamic", False))
 
     return {
         "proxy_tuple": proxy_tuple,
