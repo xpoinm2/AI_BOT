@@ -1,4 +1,4 @@
-TG Manager Bot (Telethon) — dynamic proxy + multi-API
+TG Manager Bot (Telethon) — static private SOCKS5 + multi-API
 ====================================================
 
 1) Установка
@@ -18,7 +18,7 @@ pip install -r requirements.txt
   * API_KEYS  — до 5 пар {"api_id": ..., "api_hash": "..."}
   * BOT_TOKEN — токен от @BotFather
   * ADMIN_ID  — твой user id (например 8099997426)
-  * DYNAMIC_PROXY — оставь enabled=True и свои прокси-параметры; или поставь False
+  * PRIVATE_PROXY — оставь enabled=True и свои параметры статичного SOCKS5; или поставь False
 
 3) Запуск
 --------
