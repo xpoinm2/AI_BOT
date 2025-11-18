@@ -123,10 +123,10 @@ PRIVATE_PROXY = {
     "enabled": True,
     "dynamic": False,
     "type": "SOCKS5",  # "SOCKS5" или "HTTP"
-    "host": "185.162.130.86",
-    "port": 10000,
-    "username": "cILkIEh3louyuDuw7tlK",
-    "password": "IhsbIca9567aZ9yUZBs7bglTE6e1V8as",
+    "host": "213.232.70.95",
+    "port": 8000,
+    "username": "dVNwH5",
+    "password": "D3o1sy",
     "rdns": True,
 }
 
