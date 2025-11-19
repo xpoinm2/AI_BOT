@@ -385,6 +385,59 @@ def get_active_tenant_proxy(owner_id: int) -> Optional[Dict[str, Any]]:
     return cfg
 
 
+def owner_has_account_proxy_overrides(owner_id: int) -> bool:
+    """Return True if the user has at least one account with a custom proxy."""
+
+    accounts = get_accounts_meta(owner_id)
+    for meta in accounts.values():
+        override = meta.get("proxy_override")
+        if isinstance(override, dict) and override.get("enabled", True):
+            return True
+    return False
+
+
+def clear_account_proxy_overrides(
+    owner_id: int, *, include_disabled: bool = False
+) -> Tuple[int, List[str]]:
+    """Remove stored per-account proxy overrides.
+
+    Parameters
+    ----------
+    owner_id: int
+        Tenant identifier whose accounts should be processed.
+    include_disabled: bool
+        When True the function also removes overrides that explicitly
+        disabled proxies (``{"enabled": False}``).  By default those
+        overrides are preserved so admins do not accidentally switch
+        such accounts back to using the tenant/global proxy.
+
+    Returns
+    -------
+    Tuple[int, List[str]]
+        ``(removed_count, phones)`` where ``phones`` is the list of
+        affected phone numbers.
+    """
+
+    accounts = get_accounts_meta(owner_id)
+    removed = 0
+    phones: List[str] = []
+
+    for phone, meta in accounts.items():
+        override = meta.get("proxy_override")
+        if not isinstance(override, dict):
+            continue
+        if not include_disabled and not override.get("enabled", True):
+            continue
+        meta.pop("proxy_override", None)
+        removed += 1
+        phones.append(phone)
+
+    if removed:
+        persist_tenants()
+
+    return removed, phones
+
+
 async def clear_owner_runtime(owner_id: int) -> None:
     owner_workers = WORKERS.pop(owner_id, {})
     for worker in owner_workers.values():
@@ -4093,12 +4146,15 @@ def proxy_menu_buttons(owner_id: int) -> List[List[Button]]:
     cfg = get_tenant_proxy_config(owner_id)
     has_active = get_active_tenant_proxy(owner_id) is not None
     has_config = bool(cfg)
+    has_overrides = owner_has_account_proxy_overrides(owner_id)
     rows: List[List[Button]] = []
     rows.append([Button.inline("➕ Добавить/Изменить", b"proxy_set")])
     if has_active:
         rows.append([Button.inline("🔄 Обновить IP", b"proxy_refresh")])
     if has_config:
         rows.append([Button.inline("🚫 Отключить", b"proxy_clear")])
+    if has_overrides:
+        rows.append([Button.inline("♻️ Сбросить прокси аккаунтов", b"proxy_reset_accounts")])
     rows.append([Button.inline("⬅️ Назад", b"back")])
     return rows
 
@@ -4448,6 +4504,34 @@ async def on_cb(ev):
         await answer_callback(ev)
         restarted, errors = await apply_proxy_config_to_owner(admin_id, restart_active=True)
         text_lines = ["🚫 Прокси для ваших аккаунтов отключён.", "", format_proxy_settings(admin_id)]
+        if restarted:
+            text_lines.append(f"Перезапущено активных аккаунтов: {restarted}.")
+        if errors:
+            text_lines.append("⚠️ Ошибки при обновлении: " + "; ".join(errors))
+        await edit_or_send_message(
+            ev,
+            admin_id,
+            "\n".join(text_lines),
+            buttons=proxy_menu_buttons(admin_id),
+        )
+        return
+
+    if data == "proxy_reset_accounts":
+        removed, phones = clear_account_proxy_overrides(admin_id)
+        if not removed:
+            await answer_callback(ev, "Нет аккаунтов с личным прокси", alert=True)
+            return
+        await answer_callback(ev)
+        restarted, errors = await apply_proxy_config_to_owner(admin_id, restart_active=True)
+        text_lines = [
+            f"♻️ Удалены персональные прокси у {removed} аккаунтов.",
+            "Теперь они используют настройки из раздела 'Прокси'.",
+            "",
+            format_proxy_settings(admin_id),
+        ]
+        if removed <= 5:
+            phones.sort()
+            text_lines.append("\n".join(["", "Аккаунты:"] + [f"• {p}" for p in phones]))
         if restarted:
             text_lines.append(f"Перезапущено активных аккаунтов: {restarted}.")
         if errors:
