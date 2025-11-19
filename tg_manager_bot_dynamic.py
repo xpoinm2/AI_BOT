@@ -16,7 +16,7 @@ import socket
 import mimetypes
 from dataclasses import dataclass
 from datetime import datetime
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict, defaultdict, deque
 from logging.handlers import RotatingFileHandler
 from typing import Dict, Optional, Any, List, Tuple, Set, TYPE_CHECKING, Callable, cast
 from io import BytesIO
@@ -917,6 +917,10 @@ LIBRARY_INLINE_RESULT_LIMIT = 25
 
 
 INLINE_REPLY_SENTINEL = "\u2063INLINE_REPLY:"
+INLINE_REPLY_RESULT_PREFIX = "reply:"
+INLINE_REPLY_TOKEN_TRACK = 512
+_inline_reply_token_queue: "deque[str]" = deque()
+_inline_reply_token_seen: Set[str] = set()
 
 ADD_ACCOUNT_INLINE_QUERIES = {"add account", "account add"}
 ADD_ACCOUNT_INLINE_MANUAL_ID = "add_account_proxy_manual"
@@ -984,29 +988,97 @@ def _build_reply_inline_results(
             )
         ]
     description = f"Аккаунт {ctx_info['phone']} • чат {ctx_info['chat_id']}"
-    articles: List[InlineArticle] = [
+    base_payload = {"ctx": ctx_id, "mode": mode}
+    articles: List[InlineArticle] = []
+
+    token = _register_payload(json.dumps({**base_payload, "variant": "text"}, ensure_ascii=False))
+    articles.append(
         InlineArticle(
-            id=f"reply_{ctx_id}_{mode}_text",
+            id=f"{INLINE_REPLY_RESULT_PREFIX}{token}",
             title="✍️ Написать сообщение",
             description=description,
-            text=f"{INLINE_REPLY_SENTINEL}{mode}:{ctx_id}",
+            text=f"{INLINE_REPLY_SENTINEL}{token}",
         )
-    ]
+    )
 
     for file_type, meta in REPLY_TEMPLATE_META.items():
         emoji = meta.get("emoji", "")
         label = meta.get("label", file_type)
         inline_label = f"{emoji} {label}".strip()
+        picker_payload = {
+            **base_payload,
+            "variant": "picker",
+            "file_type": file_type,
+        }
+        picker_token = _register_payload(json.dumps(picker_payload, ensure_ascii=False))
         articles.append(
             InlineArticle(
-                id=f"reply_{ctx_id}_{mode}_{file_type}",
+                id=f"{INLINE_REPLY_RESULT_PREFIX}{picker_token}",
                 title=inline_label,
                 description=description,
-                text=f"{INLINE_REPLY_SENTINEL}{mode}:{ctx_id}:picker:{file_type}",
+                text=f"{INLINE_REPLY_SENTINEL}{picker_token}",
             )
         )
 
     return articles
+
+
+def _prune_inline_reply_tokens() -> None:
+    while len(_inline_reply_token_queue) > INLINE_REPLY_TOKEN_TRACK:
+        oldest = _inline_reply_token_queue.popleft()
+        _inline_reply_token_seen.discard(oldest)
+
+
+def _claim_inline_reply_token(token: str) -> bool:
+    if not token:
+        return False
+    if token in _inline_reply_token_seen:
+        return False
+    _inline_reply_token_seen.add(token)
+    _inline_reply_token_queue.append(token)
+    _prune_inline_reply_tokens()
+    return True
+
+
+def _resolve_inline_reply_payload(token: str) -> Optional[Dict[str, Any]]:
+    raw = _resolve_payload(token)
+    if not raw:
+        return None
+    with contextlib.suppress(json.JSONDecodeError):
+        data = json.loads(raw)
+        if isinstance(data, dict):
+            return data
+    return None
+
+
+async def _execute_inline_reply_payload(admin_id: int, payload: Dict[str, Any]) -> None:
+    ctx = payload.get("ctx")
+    if not ctx:
+        await send_temporary_message(admin_id, "❌ Контекст недоступен.")
+        return
+    mode = payload.get("mode", "normal")
+    mode_value = "reply" if mode == "reply" else "normal"
+    error = await _activate_reply_session(admin_id, ctx, mode_value)
+    if error:
+        await send_temporary_message(admin_id, f"❌ {error}")
+        return
+    if payload.get("variant") == "picker":
+        file_type = payload.get("file_type")
+        if not file_type:
+            return
+        picker_error = await _open_reply_asset_menu(admin_id, ctx, mode_value, file_type)
+        if picker_error:
+            await send_temporary_message(admin_id, f"❌ {picker_error}")
+
+
+async def _process_inline_reply_token(admin_id: int, token: str) -> bool:
+    payload = _resolve_inline_reply_payload(token)
+    if not payload:
+        return False
+    if not _claim_inline_reply_token(token):
+        return True
+    await _execute_inline_reply_payload(admin_id, payload)
+    return True
 
 
 def _parse_reply_inline_query(query: str) -> Optional[Tuple[str, str]]:
@@ -4354,6 +4426,25 @@ async def on_inline_query(ev):
     await ev.answer(results, cache_time=0)
 
 
+async def _handle_reply_inline_send(update: types.UpdateBotInlineSend) -> None:
+    admin_id = getattr(update, "user_id", None)
+    if admin_id is None or not is_admin(admin_id):
+        return
+
+    result_id = getattr(update, "id", "") or ""
+    if not result_id.startswith(INLINE_REPLY_RESULT_PREFIX):
+        return
+
+    token = result_id[len(INLINE_REPLY_RESULT_PREFIX) :]
+    payload = _resolve_inline_reply_payload(token)
+    if not payload:
+        return
+    if not _claim_inline_reply_token(token):
+        return
+
+    await _execute_inline_reply_payload(admin_id, payload)
+
+
 async def _handle_add_account_inline_send(update: types.UpdateBotInlineSend) -> None:
     admin_id = getattr(update, "user_id", None)
     if admin_id is None or not is_admin(admin_id):
@@ -4392,6 +4483,7 @@ async def _handle_add_account_inline_send(update: types.UpdateBotInlineSend) -> 
 async def on_raw_update(ev):
     update = getattr(ev, "update", None)
     if isinstance(update, types.UpdateBotInlineSend):
+        await _handle_reply_inline_send(update)
         await _handle_add_account_inline_send(update)
 
 
@@ -5581,22 +5673,24 @@ async def on_text(ev):
 
     sentinel_index = text.find(INLINE_REPLY_SENTINEL)
     if sentinel_index != -1:
-        payload = text[sentinel_index + len(INLINE_REPLY_SENTINEL) :]
-        tokens = [token for token in payload.split(":") if token]
-        if len(tokens) >= 2:
-            mode_token, ctx = tokens[0], tokens[1]
-            mode = "reply" if mode_token == "reply" else "normal"
-            error = await _activate_reply_session(admin_id, ctx, mode)
-            if error:
-                await send_temporary_message(admin_id, f"❌ {error}")
-            else:
-                if len(tokens) >= 4 and tokens[2] == "picker":
-                    file_type = tokens[3]
-                    picker_error = await _open_reply_asset_menu(
-                        admin_id, ctx, mode, file_type
-                    )
-                    if picker_error:
-                        await send_temporary_message(admin_id, f"❌ {picker_error}")
+        payload_token = text[sentinel_index + len(INLINE_REPLY_SENTINEL) :].strip()
+        handled = await _process_inline_reply_token(admin_id, payload_token)
+        if not handled:
+            tokens = [token for token in payload_token.split(":") if token]
+            if len(tokens) >= 2:
+                mode_token, ctx = tokens[0], tokens[1]
+                mode = "reply" if mode_token == "reply" else "normal"
+                error = await _activate_reply_session(admin_id, ctx, mode)
+                if error:
+                    await send_temporary_message(admin_id, f"❌ {error}")
+                else:
+                    if len(tokens) >= 4 and tokens[2] == "picker":
+                        file_type = tokens[3]
+                        picker_error = await _open_reply_asset_menu(
+                            admin_id, ctx, mode, file_type
+                        )
+                        if picker_error:
+                            await send_temporary_message(admin_id, f"❌ {picker_error}")
         with contextlib.suppress(Exception):
             await ev.delete()
         return
