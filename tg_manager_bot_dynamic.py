@@ -3906,6 +3906,7 @@ async def send_temporary_message(chat_id: int, text: str, *, delay: float = 5.0)
 
 
 menu_button_reset: Set[int] = set()
+main_menu_messages: Dict[int, int] = {}
 
 ADD_ACCOUNT_PROMPT = (
     "Перед добавлением аккаунта выбери подключение:"
@@ -4095,10 +4096,25 @@ async def ensure_menu_button_hidden(admin_id: int) -> None:
 
 def main_menu():
     return [
-        [Button.switch_inline("➕ Добавить аккаунт", query="add_account", same_peer=True)],
+        [Button.inline("➕ Добавить аккаунт", b"add")],
         [Button.inline("📋 Список аккаунтов", b"list")],
         [library_inline_button("", "📁 Файлы ↗")],
     ]
+
+
+async def show_main_menu(admin_id: int, text: str = "Менеджер запущен. Выбери действие:") -> None:
+    buttons = main_menu()
+    message_id = main_menu_messages.get(admin_id)
+    if message_id:
+        try:
+            await bot_client.edit_message(admin_id, message_id, text, buttons=buttons)
+            return
+        except Exception as exc:
+            log.debug("Не удалось обновить главное меню для %s: %s", admin_id, exc)
+            main_menu_messages.pop(admin_id, None)
+
+    msg = await bot_client.send_message(admin_id, text, buttons=buttons)
+    main_menu_messages[admin_id] = msg.id
 
 
 def files_add_menu() -> List[List[Button]]:
@@ -4353,7 +4369,7 @@ async def on_start(ev):
         await ev.respond("Доступ запрещён.")
         return
     await cancel_operations(admin_id, notify=False)
-    await ev.respond("Менеджер запущен. Выбери действие:", buttons=main_menu())
+    await show_main_menu(admin_id)
     await ensure_menu_button_hidden(admin_id)
 
 @bot_client.on(events.CallbackQuery)
