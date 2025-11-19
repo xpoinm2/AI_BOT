@@ -4119,7 +4119,11 @@ async def ensure_menu_button_hidden(admin_id: int) -> None:
 
 def main_menu():
     return [
-        [Button.inline("➕ Добавить аккаунт", b"add")],
+        [
+            Button.switch_inline(
+                "➕ Добавить аккаунт ↗", query="add account", same_peer=True
+            )
+        ],
         [Button.inline("📋 Список аккаунтов", b"list")],
         [library_inline_button("", "📁 Файлы ↗")],
     ]
