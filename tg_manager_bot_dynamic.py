@@ -21,7 +21,7 @@ from logging.handlers import RotatingFileHandler
 from typing import Dict, Optional, Any, List, Tuple, Set, TYPE_CHECKING, Callable, cast
 from io import BytesIO
 from telethon import TelegramClient, events, Button, functions, helpers, types
-from OpenAi_helper import generate_dating_ai_variants
+from OpenAi_helper import generate_dating_ai_variants, recommend_dating_ai_variant
 from telethon.utils import get_display_name
 from telethon.sessions import StringSession
 from telethon.errors import (
@@ -124,16 +124,6 @@ PRIVATE_PROXY = {
     "enabled": False,
     "dynamic": False,
 }
-
-# ``DYNAMIC_PROXY`` является глобальной конфигурацией для fallback-прокси.
-# В старой версии бота эта структура инициализировалась отдельно, поэтому
-# при возврате файла появлялась ошибка NameError.  Чтобы сохранить прежнее
-# поведение, используем значения PRIVATE_PROXY (если они заданы словарём).
-# Это позволяет по-прежнему отключать прокси, установив PRIVATE_PROXY=False.
-if isinstance(PRIVATE_PROXY, dict):
-    DYNAMIC_PROXY: Dict[str, Any] = dict(PRIVATE_PROXY)
-else:
-    DYNAMIC_PROXY = {"enabled": False, "dynamic": False}
 
 # Необязательный периодический авто-reconnect для обновления IP (минуты).
 # 0 — выключено.
@@ -388,6 +378,59 @@ def get_active_tenant_proxy(owner_id: int) -> Optional[Dict[str, Any]]:
     if not cfg.get("host") or cfg.get("port") is None:
         return None
     return cfg
+
+
+def owner_has_account_proxy_overrides(owner_id: int) -> bool:
+    """Return True if the user has at least one account with a custom proxy."""
+
+    accounts = get_accounts_meta(owner_id)
+    for meta in accounts.values():
+        override = meta.get("proxy_override")
+        if isinstance(override, dict) and override.get("enabled", True):
+            return True
+    return False
+
+
+def clear_account_proxy_overrides(
+    owner_id: int, *, include_disabled: bool = False
+) -> Tuple[int, List[str]]:
+    """Remove stored per-account proxy overrides.
+
+    Parameters
+    ----------
+    owner_id: int
+        Tenant identifier whose accounts should be processed.
+    include_disabled: bool
+        When True the function also removes overrides that explicitly
+        disabled proxies (``{"enabled": False}``).  By default those
+        overrides are preserved so admins do not accidentally switch
+        such accounts back to using the tenant/global proxy.
+
+    Returns
+    -------
+    Tuple[int, List[str]]
+        ``(removed_count, phones)`` where ``phones`` is the list of
+        affected phone numbers.
+    """
+
+    accounts = get_accounts_meta(owner_id)
+    removed = 0
+    phones: List[str] = []
+
+    for phone, meta in accounts.items():
+        override = meta.get("proxy_override")
+        if not isinstance(override, dict):
+            continue
+        if not include_disabled and not override.get("enabled", True):
+            continue
+        meta.pop("proxy_override", None)
+        removed += 1
+        phones.append(phone)
+
+    if removed:
+        persist_tenants()
+
+    return removed, phones
 
 
 async def clear_owner_runtime(owner_id: int) -> None:
@@ -1600,8 +1643,8 @@ def _proxy_tuple_from_config(config: Optional[Dict[str, Any]], *, context: str =
     return (proxy_const, host, port_int, rdns, username, password)
 
 
-def build_dynamic_proxy_tuple() -> Optional[Tuple]:
-    return _proxy_tuple_from_config(DYNAMIC_PROXY, context="dynamic")
+def build_private_proxy_tuple() -> Optional[Tuple]:
+    return _proxy_tuple_from_config(PRIVATE_PROXY, context="default")
 
 
 def proxy_desc(p: Optional[Tuple]) -> str:
@@ -1686,16 +1729,16 @@ def build_bot_proxy_config() -> Dict[str, Any]:
     without the optional credentials.  When the upstream provider requires
     authentication this resulted in ``GeneralProxyError`` during start-up,
     because the proxy rejected the unauthenticated SOCKS5 handshake.  Reuse the
-    dynamic proxy values instead so the bot client benefits from the same
+    ``PRIVATE_PROXY`` values instead so the bot client benefits from the same
     credentials (while still allowing manual overrides by editing the returned
     mapping).
     """
 
     base: Dict[str, Any] = {}
-    if isinstance(DYNAMIC_PROXY, dict):
-        base.update(DYNAMIC_PROXY)
+    if isinstance(PRIVATE_PROXY, dict):
+        base.update(PRIVATE_PROXY)
 
-    # If the dynamic proxy config was disabled entirely fall back to the
+    # If the proxy config was disabled entirely fall back to the
     # default behaviour of running without a proxy (``enabled`` evaluates to
     # False downstream and ``_proxy_tuple_from_config`` will return ``None``).
     base.setdefault("enabled", True)
@@ -2116,10 +2159,10 @@ def resolve_proxy_for_account(owner_id: int, phone: str, meta: Dict[str, Any]) -
                 warnings.append(("tenant_invalid", None))
 
     if proxy_tuple is None and override_enabled:
-        dynamic_tuple = build_dynamic_proxy_tuple()
-        if dynamic_tuple is not None:
-            proxy_tuple = dynamic_tuple
-            is_dynamic = True
+        default_tuple = build_private_proxy_tuple()
+        if default_tuple is not None:
+            proxy_tuple = default_tuple
+            is_dynamic = bool(PRIVATE_PROXY.get("dynamic", False))
 
     return {
         "proxy_tuple": proxy_tuple,
@@ -3323,6 +3366,8 @@ class PendingAIReply:
     suggested_variants: List[str]
     # -1 = админ ещё не выбрал вариант
     chosen_index: int = -1
+    recommended_index: Optional[int] = None
+    recommendation_text: Optional[str] = None
 
 
 pending_ai_replies: Dict[str, PendingAIReply] = {}
@@ -3347,8 +3392,28 @@ def _format_ai_variants_for_admin(task_id: str, pr: PendingAIReply):
     ]
 
     for i, v in enumerate(variants, start=1):
-        lines.append(f"{i}) {v}")
+        suffix = ""
+        if pr.recommended_index is not None and pr.recommended_index == i - 1:
+            suffix = "  ⭐️"
+        lines.append(f"{i}) {v}{suffix}")
         lines.append("")
+
+    if pr.recommendation_text:
+        lines.extend(
+            [
+                "🤖 Рекомендация ИИ:",
+                pr.recommendation_text,
+                "",
+            ]
+        )
+    elif pr.recommended_index is not None:
+        lines.extend(
+            [
+                "🤖 Рекомендация ИИ:",
+                f"Рекомендован вариант №{pr.recommended_index + 1}.",
+                "",
+            ]
+        )
 
     lines.append(
         "Выбери один из вариантов кнопками ниже.\n"
@@ -3390,6 +3455,23 @@ def _format_ai_chosen_for_admin(task_id: str, pr: PendingAIReply):
         pr.incoming_text,
         "",
     ]
+
+    if pr.recommendation_text:
+        lines.extend(
+            [
+                "🤖 Рекомендация ИИ:",
+                pr.recommendation_text,
+                "",
+            ]
+        )
+    elif pr.recommended_index is not None:
+        lines.extend(
+            [
+                "🤖 Рекомендация ИИ:",
+                f"Рекомендован вариант №{pr.recommended_index + 1}.",
+                "",
+            ]
+        )
 
     if num > 0:
         lines.extend(
@@ -3502,6 +3584,28 @@ async def handle_ai_autoreply(worker: "AccountWorker", ev, peer) -> None:
     while len(cleaned) < 3:
         cleaned.append(cleaned[-1])
 
+    recommended_index: Optional[int] = None
+    recommendation_text: Optional[str] = None
+
+    try:
+        rec_idx, rec_text = await recommend_dating_ai_variant(
+            incoming_text=user_text,
+            variants=cleaned,
+            history_lines=history_lines,
+            profile=profile_description,
+            model="gpt-4o",
+            temperature=0.4,
+        )
+    except Exception as rec_err:
+        log.debug(
+            "[%s] не удалось получить рекомендацию варианта: %s",
+            worker.phone,
+            rec_err,
+        )
+    else:
+        recommended_index = rec_idx
+        recommendation_text = rec_text
+
     task_id = f"{worker.owner_id}:{worker.phone}:{ev.chat_id}:{ev.id}"
     pr = PendingAIReply(
         owner_id=worker.owner_id,
@@ -3510,6 +3614,8 @@ async def handle_ai_autoreply(worker: "AccountWorker", ev, peer) -> None:
         msg_id=ev.id,
         incoming_text=user_text,
         suggested_variants=cleaned,
+        recommended_index=recommended_index,
+        recommendation_text=recommendation_text,
     )
     pending_ai_replies[task_id] = pr
 
@@ -3960,7 +4066,6 @@ def main_menu():
         [Button.inline("➕ Добавить аккаунт", b"add")],
         [Button.inline("📋 Список аккаунтов", b"list")],
         [library_inline_button("", "📁 Файлы ↗")],
-        [Button.inline("🧪 Ping", b"ping")],
     ]
 
 
@@ -4036,12 +4141,15 @@ def proxy_menu_buttons(owner_id: int) -> List[List[Button]]:
     cfg = get_tenant_proxy_config(owner_id)
     has_active = get_active_tenant_proxy(owner_id) is not None
     has_config = bool(cfg)
+    has_overrides = owner_has_account_proxy_overrides(owner_id)
     rows: List[List[Button]] = []
     rows.append([Button.inline("➕ Добавить/Изменить", b"proxy_set")])
     if has_active:
         rows.append([Button.inline("🔄 Обновить IP", b"proxy_refresh")])
     if has_config:
         rows.append([Button.inline("🚫 Отключить", b"proxy_clear")])
+    if has_overrides:
+        rows.append([Button.inline("♻️ Сбросить прокси аккаунтов", b"proxy_reset_accounts")])
     rows.append([Button.inline("⬅️ Назад", b"back")])
     return rows
 
@@ -4174,7 +4282,8 @@ async def on_inline_query(ev):
 async def on_start(ev):
     admin_id = _extract_event_user_id(ev)
     if admin_id is None or not is_admin(admin_id):
-        await ev.respond("Доступ запрещён."); return
+        await ev.respond("Доступ запрещён.")
+        return
     await cancel_operations(admin_id, notify=False)
     await ev.respond("Менеджер запущен. Выбери действие:", buttons=main_menu())
     await ensure_menu_button_hidden(admin_id)
@@ -4390,6 +4499,34 @@ async def on_cb(ev):
         await answer_callback(ev)
         restarted, errors = await apply_proxy_config_to_owner(admin_id, restart_active=True)
         text_lines = ["🚫 Прокси для ваших аккаунтов отключён.", "", format_proxy_settings(admin_id)]
+        if restarted:
+            text_lines.append(f"Перезапущено активных аккаунтов: {restarted}.")
+        if errors:
+            text_lines.append("⚠️ Ошибки при обновлении: " + "; ".join(errors))
+        await edit_or_send_message(
+            ev,
+            admin_id,
+            "\n".join(text_lines),
+            buttons=proxy_menu_buttons(admin_id),
+        )
+        return
+
+    if data == "proxy_reset_accounts":
+        removed, phones = clear_account_proxy_overrides(admin_id)
+        if not removed:
+            await answer_callback(ev, "Нет аккаунтов с личным прокси", alert=True)
+            return
+        await answer_callback(ev)
+        restarted, errors = await apply_proxy_config_to_owner(admin_id, restart_active=True)
+        text_lines = [
+            f"♻️ Удалены персональные прокси у {removed} аккаунтов.",
+            "Теперь они используют настройки из раздела 'Прокси'.",
+            "",
+            format_proxy_settings(admin_id),
+        ]
+        if removed <= 5:
+            phones.sort()
+            text_lines.append("\n".join(["", "Аккаунты:"] + [f"• {p}" for p in phones]))
         if restarted:
             text_lines.append(f"Перезапущено активных аккаунтов: {restarted}.")
         if errors:
@@ -5355,9 +5492,6 @@ async def on_cb(ev):
         await answer_callback(ev)
         return
 
-    if data == "ping":
-        await answer_callback(ev); await bot_client.send_message(admin_id, "✅ OK", buttons=main_menu()); return
-
 @bot_client.on(events.NewMessage)
 
 async def on_text(ev):
@@ -5507,7 +5641,7 @@ async def on_text(ev):
         cmd_full = parts[0].lower()
         cmd_base = cmd_full.split("@", 1)[0]
         if cmd_base == "/start":
-            await ev.respond("Менеджер запущен. Выбери действие:", buttons=main_menu())
+            return
         elif cmd_base in {"/add", "/addaccount"}:
             pending[admin_id] = {"flow": "account", "step": "proxy_choice"}
             await ev.respond(ADD_ACCOUNT_PROMPT, buttons=account_add_proxy_menu())
