@@ -1748,13 +1748,19 @@ def build_bot_proxy_config() -> Dict[str, Any]:
 BOT_PROXY_CONFIG = build_bot_proxy_config()
 BOT_PROXY_TUPLE = _proxy_tuple_from_config(BOT_PROXY_CONFIG, context="bot")
 
+
+def _connection_cls_for_proxy(proxy_tuple: Optional[Tuple]) -> type[_ConnectionTcpFull]:
+    """Pick the appropriate Telethon connection implementation."""
+
+    return _ThreadedPySocksConnection if proxy_tuple else _ConnectionTcpFull
+
 # Используем первую пару API_KEYS для бота
 bot_client = TelegramClient(
     StringSession(),
     API_KEYS[0]["api_id"],
     API_KEYS[0]["api_hash"],
     proxy=BOT_PROXY_TUPLE,
-    connection=_ThreadedPySocksConnection,
+    connection=_connection_cls_for_proxy(BOT_PROXY_TUPLE),
 )
 
 # безопасная отправка админу (не падаем, если админ ещё не нажал /start)
@@ -2539,7 +2545,7 @@ class AccountWorker:
         return TelegramClient(
             self.session, self.api_id, self.api_hash,
             proxy=proxy_cfg,
-            connection=_ThreadedPySocksConnection,
+            connection=_connection_cls_for_proxy(proxy_cfg),
             device_model=self.device.get("device_model"),
             system_version=self.device.get("system_version"),
             app_version=self.device.get("app_version"),
