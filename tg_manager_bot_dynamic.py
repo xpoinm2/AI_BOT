@@ -4231,7 +4231,8 @@ async def on_inline_query(ev):
 async def on_start(ev):
     admin_id = _extract_event_user_id(ev)
     if admin_id is None or not is_admin(admin_id):
-        await ev.respond("Доступ запрещён."); return
+        await ev.respond("Доступ запрещён.")
+        return
     await cancel_operations(admin_id, notify=False)
     await ev.respond("Менеджер запущен. Выбери действие:", buttons=main_menu())
     await ensure_menu_button_hidden(admin_id)
