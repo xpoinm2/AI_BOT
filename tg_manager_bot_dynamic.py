@@ -125,6 +125,16 @@ PRIVATE_PROXY = {
     "dynamic": False,
 }
 
+# ``DYNAMIC_PROXY`` является глобальной конфигурацией для fallback-прокси.
+# В старой версии бота эта структура инициализировалась отдельно, поэтому
+# при возврате файла появлялась ошибка NameError.  Чтобы сохранить прежнее
+# поведение, используем значения PRIVATE_PROXY (если они заданы словарём).
+# Это позволяет по-прежнему отключать прокси, установив PRIVATE_PROXY=False.
+if isinstance(PRIVATE_PROXY, dict):
+    DYNAMIC_PROXY: Dict[str, Any] = dict(PRIVATE_PROXY)
+else:
+    DYNAMIC_PROXY = {"enabled": False, "dynamic": False}
+
 # Необязательный периодический авто-reconnect для обновления IP (минуты).
 # 0 — выключено.
 AUTO_RECONNECT_MINUTES = 0
