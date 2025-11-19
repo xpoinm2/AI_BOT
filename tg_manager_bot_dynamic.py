@@ -918,6 +918,10 @@ LIBRARY_INLINE_RESULT_LIMIT = 25
 
 INLINE_REPLY_SENTINEL = "\u2063INLINE_REPLY:"
 
+ADD_ACCOUNT_INLINE_QUERIES = {"add account", "account add"}
+ADD_ACCOUNT_INLINE_MANUAL_ID = "add_account_proxy_manual"
+ADD_ACCOUNT_INLINE_DIRECT_ID = "add_account_proxy_none"
+
 
 @dataclass
 class InlineArticle:
@@ -939,6 +943,23 @@ def library_inline_button(file_type: str, label: str) -> Button:
     # behaviour by opening the inline query in the current chat instead of
     # redirecting the user to a different dialog.
     return Button.switch_inline(label, query=query, same_peer=True)
+
+
+def _build_add_account_inline_results() -> List[InlineArticle]:
+    return [
+        InlineArticle(
+            id=ADD_ACCOUNT_INLINE_MANUAL_ID,
+            title="Ввести прокси",
+            description="Использовать SOCKS5/HTTP прокси для нового аккаунта",
+            text=ACCOUNT_PROXY_MANUAL_PROMPT,
+        ),
+        InlineArticle(
+            id=ADD_ACCOUNT_INLINE_DIRECT_ID,
+            title="Без прокси",
+            description="Подключиться напрямую без прокси",
+            text=ACCOUNT_PHONE_PROMPT,
+        ),
+    ]
 
 
 def _reply_inline_help_article(mode: str, reason: str) -> InlineArticle:
@@ -3892,6 +3913,17 @@ ADD_ACCOUNT_PROMPT = (
     "\n• или нажми \"Без прокси\" для прямого подключения"
 )
 
+ACCOUNT_PROXY_MANUAL_PROMPT = (
+    "Пришли параметры прокси в формате\n"
+    "SOCKS5://host:port, host:port или host:port:логин:пароль.\n"
+    "Можно указать HTTP:// или SOCKS4://.\n"
+    "Напиши 'без прокси' для прямого подключения или 'отмена' для отмены."
+)
+
+ACCOUNT_PHONE_PROMPT = (
+    "Подключение будет без прокси. Пришли номер телефона (+7XXXXXXXXXX)"
+)
+
 BOT_COMMANDS: List[types.BotCommand] = [
     types.BotCommand(command="start", description="Открыть главное меню"),
     types.BotCommand(command="add", description="Добавить аккаунт"),
@@ -4063,7 +4095,7 @@ async def ensure_menu_button_hidden(admin_id: int) -> None:
 
 def main_menu():
     return [
-        [Button.inline("➕ Добавить аккаунт", b"add")],
+        [Button.switch_inline("➕ Добавить аккаунт", query="add_account", same_peer=True)],
         [Button.inline("📋 Список аккаунтов", b"list")],
         [library_inline_button("", "📁 Файлы ↗")],
     ]
@@ -4207,7 +4239,15 @@ async def on_inline_query(ev):
         return
 
     raw_query = (ev.text or "").strip()
+    normalized_query = " ".join(raw_query.replace("_", " ").split()).strip().lower()
 
+    if normalized_query in ADD_ACCOUNT_INLINE_QUERIES:
+        results = await _render_inline_articles(
+            ev.builder, _build_add_account_inline_results()
+        )
+        await ev.answer(results, cache_time=0)
+        return
+    
     reply_query = _parse_reply_inline_query(raw_query)
     if reply_query is not None:
         ctx_id, mode = reply_query
@@ -4276,6 +4316,34 @@ async def on_inline_query(ev):
             )
 
     await ev.answer(results, cache_time=0)
+
+
+async def _handle_add_account_inline_send(update: types.UpdateBotInlineSend) -> None:
+    admin_id = getattr(update, "user_id", None)
+    if admin_id is None or not is_admin(admin_id):
+        return
+
+    result_id = getattr(update, "id", "") or ""
+    if result_id not in {ADD_ACCOUNT_INLINE_MANUAL_ID, ADD_ACCOUNT_INLINE_DIRECT_ID}:
+        return
+
+    await cancel_operations(admin_id, notify=False)
+
+    st = pending.setdefault(admin_id, {"flow": "account"})
+    st["flow"] = "account"
+    if result_id == ADD_ACCOUNT_INLINE_MANUAL_ID:
+        st["step"] = "proxy_manual"
+        st.pop("proxy_config", None)
+    else:
+        st["step"] = "phone"
+        st["proxy_config"] = {"enabled": False}
+
+
+@bot_client.on(events.Raw)
+async def on_raw_update(ev):
+    update = getattr(ev, "update", None)
+    if isinstance(update, types.UpdateBotInlineSend):
+        await _handle_add_account_inline_send(update)
 
 
 @bot_client.on(events.NewMessage(pattern="/start"))
@@ -4680,12 +4748,7 @@ async def on_cb(ev):
         await edit_or_send_message(
             ev,
             admin_id,
-            (
-                "Пришли параметры прокси в формате\n"
-                "SOCKS5://host:port, host:port или host:port:логин:пароль.\n"
-                "Можно указать HTTP:// или SOCKS4://.\n"
-                "Напиши 'без прокси' для прямого подключения или 'отмена' для отмены."
-            ),
+            ACCOUNT_PROXY_MANUAL_PROMPT,
         )
         return
 
@@ -4698,7 +4761,7 @@ async def on_cb(ev):
         await edit_or_send_message(
             ev,
             admin_id,
-            "Подключение будет без прокси. Пришли номер телефона (+7XXXXXXXXXX)",
+            ACCOUNT_PHONE_PROMPT,
         )
         return
 
