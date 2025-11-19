@@ -121,14 +121,8 @@ ROOT_ADMIN_IDS = {8099997426, 7519364639}
 # Боту больше не требуется прокси, поэтому он выключен. Чтобы вернуть подключение
 # через прокси, установите enabled=True и задайте параметры вручную.
 PRIVATE_PROXY = {
-    "enabled": True,
+    "enabled": False,
     "dynamic": False,
-    "type": "SOCKS5",  # "SOCKS5" или "HTTP"
-    "host": "213.232.70.95",
-    "port": 8000,
-    "username": "dVNwH5",
-    "password": "D3o1sy",
-    "rdns": True,
 }
 
 # Необязательный периодический авто-reconnect для обновления IP (минуты).
