@@ -933,7 +933,12 @@ class InlineArticle:
 def library_inline_button(file_type: str, label: str) -> Button:
     """Create an inline switch button for library previews."""
 
-    query = " ".join(("library", file_type)).strip()
+    tokens = ["library"]
+    if file_type:
+        tokens.append(file_type)
+    # Добавляем пробел в конце, чтобы Telegram сразу активировал режим инлайна
+    # (иначе пользователь увидит только автоподстановку текста без выдачи).
+    query = " ".join(tokens) + " "
     # ``Button.switch_inline_current`` was removed in recent Telethon releases.
     # ``Button.switch_inline`` with ``same_peer=True`` replicates the previous
     # behaviour by opening the inline query in the current chat instead of
