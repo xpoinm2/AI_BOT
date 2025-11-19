@@ -4367,12 +4367,25 @@ async def _handle_add_account_inline_send(update: types.UpdateBotInlineSend) -> 
 
     st = pending.setdefault(admin_id, {"flow": "account"})
     st["flow"] = "account"
+    prompt_text: Optional[str] = None
     if result_id == ADD_ACCOUNT_INLINE_MANUAL_ID:
         st["step"] = "proxy_manual"
         st.pop("proxy_config", None)
+        prompt_text = ACCOUNT_PROXY_MANUAL_PROMPT
     else:
         st["step"] = "phone"
         st["proxy_config"] = {"enabled": False}
+        prompt_text = ACCOUNT_PHONE_PROMPT
+
+    if prompt_text:
+        try:
+            await bot_client.send_message(admin_id, prompt_text)
+        except Exception as send_error:
+            log.debug(
+                "[%s] не удалось отправить подсказку для inline добавления: %s",
+                admin_id,
+                send_error,
+            )
 
 
 @bot_client.on(events.Raw)
