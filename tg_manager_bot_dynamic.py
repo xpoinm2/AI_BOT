@@ -3909,9 +3909,10 @@ menu_button_reset: Set[int] = set()
 main_menu_messages: Dict[int, int] = {}
 
 ADD_ACCOUNT_PROMPT = (
-    "Перед добавлением аккаунта выбери подключение:"
-    "\n• введи адрес прокси, чтобы использовать его только для этого аккаунта"
-    "\n• или нажми \"Без прокси\" для прямого подключения"
+    "Добавляем новый аккаунт."
+    "\n• Пришли параметры прокси в формате SOCKS5://host:port, host:port или host:port:логин:пароль"
+    "\n• Или просто отправь номер телефона в формате +7XXXXXXXXXX"
+    "\nНапиши 'без прокси' для прямого подключения или 'отмена' чтобы выйти."
 )
 
 ACCOUNT_PROXY_MANUAL_PROMPT = (
@@ -3924,6 +3925,28 @@ ACCOUNT_PROXY_MANUAL_PROMPT = (
 ACCOUNT_PHONE_PROMPT = (
     "Подключение будет без прокси. Пришли номер телефона (+7XXXXXXXXXX)"
 )
+
+PHONE_CLEANUP_RE = re.compile(r"[\s()\-]")
+
+
+def extract_phone_number(text: str) -> Optional[str]:
+    """Try to normalize the provided text into a phone number."""
+
+    cleaned = PHONE_CLEANUP_RE.sub("", text.strip())
+    if not cleaned:
+        return None
+    if cleaned.startswith("+"):
+        digits = "+" + "".join(ch for ch in cleaned[1:] if ch.isdigit())
+    else:
+        digits_only = "".join(ch for ch in cleaned if ch.isdigit())
+        if not digits_only:
+            return None
+        if digits_only.startswith("8") and len(digits_only) == 11:
+            digits_only = "7" + digits_only[1:]
+        digits = "+" + digits_only
+    if len(digits) < 8 or not digits[1:].isdigit():
+        return None
+    return digits
 
 BOT_COMMANDS: List[types.BotCommand] = [
     types.BotCommand(command="start", description="Открыть главное меню"),
@@ -4208,13 +4231,6 @@ def account_control_menu():
         [Button.inline("⬅️ Назад", b"back")],
     ]
 
-
-def account_add_proxy_menu() -> List[List[Button]]:
-    return [
-        [Button.inline("Ввести прокси", b"account_proxy_manual")],
-        [Button.inline("Без прокси", b"account_proxy_none")],
-        [Button.inline("⬅️ Отмена", b"account_proxy_cancel")],
-    ]
 
 def build_account_buttons(owner_id: int, prefix: str, page: int = 0) -> Tuple[List[List[Button]], int, int, int]:
     phones = sorted(get_accounts_meta(owner_id).keys())
@@ -4745,48 +4761,13 @@ async def on_cb(ev):
         return
 
     if data == "add":
-        pending[admin_id] = {"flow": "account", "step": "proxy_choice"}
+        pending[admin_id] = {"flow": "account", "step": "proxy_or_phone"}
         await answer_callback(ev)
         await edit_or_send_message(
             ev,
             admin_id,
             ADD_ACCOUNT_PROMPT,
-            buttons=account_add_proxy_menu(),
         )
-        return
-
-    if data == "account_proxy_manual":
-        st = pending.setdefault(admin_id, {"flow": "account"})
-        st["flow"] = "account"
-        st["step"] = "proxy_manual"
-        st.pop("proxy_config", None)
-        await answer_callback(ev)
-        await edit_or_send_message(
-            ev,
-            admin_id,
-            ACCOUNT_PROXY_MANUAL_PROMPT,
-        )
-        return
-
-    if data == "account_proxy_none":
-        st = pending.setdefault(admin_id, {"flow": "account"})
-        st["flow"] = "account"
-        st["step"] = "phone"
-        st["proxy_config"] = {"enabled": False}
-        await answer_callback(ev)
-        await edit_or_send_message(
-            ev,
-            admin_id,
-            ACCOUNT_PHONE_PROMPT,
-        )
-        return
-
-    if data == "account_proxy_cancel":
-        if pending.pop(admin_id, None) is not None:
-            await answer_callback(ev, "Добавление отменено", alert=True)
-        else:
-            await answer_callback(ev)
-        await edit_or_send_message(ev, admin_id, "Главное меню", buttons=main_menu())
         return
 
     if data == "list":
@@ -5722,8 +5703,8 @@ async def on_text(ev):
         if cmd_base == "/start":
             return
         elif cmd_base in {"/add", "/addaccount"}:
-            pending[admin_id] = {"flow": "account", "step": "proxy_choice"}
-            await ev.respond(ADD_ACCOUNT_PROMPT, buttons=account_add_proxy_menu())
+            pending[admin_id] = {"flow": "account", "step": "proxy_or_phone"}
+            await ev.respond(ADD_ACCOUNT_PROMPT)
         elif cmd_base in {"/accounts", "/list"}:
             accounts = get_accounts_meta(admin_id)
             if not accounts:
@@ -6104,34 +6085,46 @@ async def on_text(ev):
             cancel_words = {"отмена", "cancel", "стоп", "stop"}
             no_proxy_words = {"без прокси", "без", "no proxy", "безпрокси"}
 
-            if step in {"proxy_choice", "proxy_manual"}:
-                if lowered in cancel_words:
-                    pending.pop(admin_id, None)
-                    await ev.reply("Добавление аккаунта отменено.")
-                    return
-                if lowered in no_proxy_words:
-                    st["proxy_config"] = {"enabled": False}
+            forced_phone_value: Optional[str] = None
+            if step in {"proxy_choice", "proxy_manual", "proxy_or_phone"}:
+                phone_candidate = extract_phone_number(text)
+                if phone_candidate:
+                    if "proxy_config" not in st:
+                        st["proxy_config"] = {"enabled": False}
                     st["step"] = "phone"
-                    await ev.reply("Подключение будет без прокси. Пришли номер телефона (+7XXXXXXXXXX)")
+                    forced_phone_value = phone_candidate
+                else:
+                    if lowered in cancel_words:
+                        pending.pop(admin_id, None)
+                        await ev.reply("Добавление аккаунта отменено.")
+                        return
+                    if lowered in no_proxy_words:
+                        st["proxy_config"] = {"enabled": False}
+                        st["step"] = "phone"
+                        await ev.reply(
+                            "Подключение будет без прокси. Пришли номер телефона (+7XXXXXXXXXX)"
+                        )
+                        return
+                    try:
+                        cfg = parse_proxy_input(text)
+                    except ValueError as parse_error:
+                        await ev.reply(f"Некорректный формат прокси: {parse_error}.")
+                        return
+                    cfg.setdefault("dynamic", False)
+                    st["proxy_config"] = cfg
+                    st["step"] = "phone"
+                    try:
+                        store_user_proxy_config(admin_id, cfg)
+                    except Exception as save_error:
+                        log.warning("[%s] cannot store proxy config: %s", admin_id, save_error)
+                    await ev.reply("Прокси сохранён. Пришли номер телефона (+7XXXXXXXXXX)")
                     return
-                try:
-                    cfg = parse_proxy_input(text)
-                except ValueError as parse_error:
-                    await ev.reply(f"Некорректный формат прокси: {parse_error}.")
-                    return
-                cfg.setdefault("dynamic", False)
-                st["proxy_config"] = cfg
-                st["step"] = "phone"
-                try:
-                    store_user_proxy_config(admin_id, cfg)
-                except Exception as save_error:
-                    log.warning("[%s] cannot store proxy config: %s", admin_id, save_error)
-                await ev.reply("Прокси сохранён. Пришли номер телефона (+7XXXXXXXXXX)")
-                return
+
+            step = st.get("step")
 
             if step == "phone":
-                phone = text
-                if not phone.startswith("+") or len(phone) < 8:
+                phone = forced_phone_value or extract_phone_number(text)
+                if not phone:
                     await ev.reply("Неверный формат. Пример: +7XXXXXXXXXX")
                     return
                 if not API_KEYS:
