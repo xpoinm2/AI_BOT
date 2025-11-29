@@ -4567,8 +4567,10 @@ def proxy_menu_buttons(owner_id: int) -> List[List[Button]]:
 
 def account_control_menu():
     return [
-        [Button.inline("🗑 Удалить аккаунт", b"del_select")],
-        [Button.inline("✅ Валидация", b"val_select")],
+        [
+            Button.inline("✅ Валидация", b"val_select"),
+            Button.inline("🗑 Удалить аккаунт", b"del_select")
+        ],
         [Button.inline("⬅️ Назад", b"back")],
     ]
 
