@@ -923,8 +923,24 @@ _inline_reply_token_queue: "deque[str]" = deque()
 _inline_reply_token_seen: Set[str] = set()
 
 ADD_ACCOUNT_INLINE_QUERIES = {"add account", "account add"}
-ADD_ACCOUNT_INLINE_MANUAL_ID = "add_account_proxy_manual"
-ADD_ACCOUNT_INLINE_DIRECT_ID = "add_account_proxy_none"
+ADD_ACCOUNT_INLINE_RESULT_ID = "add_account_choice"
+ADD_ACCOUNT_INLINE_MANUAL_CALLBACK = "add_inline_proxy_manual"
+ADD_ACCOUNT_INLINE_DIRECT_CALLBACK = "add_inline_proxy_none"
+
+
+def _add_account_inline_keyboard() -> List[List[Button]]:
+    return [
+        [
+            Button.inline(
+                "🌐 Ввести прокси", ADD_ACCOUNT_INLINE_MANUAL_CALLBACK.encode()
+            )
+        ],
+        [
+            Button.inline(
+                "⚡️ Без прокси", ADD_ACCOUNT_INLINE_DIRECT_CALLBACK.encode()
+            )
+        ],
+    ]
 
 
 @dataclass
@@ -952,17 +968,12 @@ def library_inline_button(file_type: str, label: str) -> Button:
 def _build_add_account_inline_results() -> List[InlineArticle]:
     return [
         InlineArticle(
-            id=ADD_ACCOUNT_INLINE_MANUAL_ID,
-            title="Ввести прокси",
-            description="Использовать SOCKS5/HTTP прокси для нового аккаунта",
-            text=ACCOUNT_PROXY_MANUAL_PROMPT,
-        ),
-        InlineArticle(
-            id=ADD_ACCOUNT_INLINE_DIRECT_ID,
-            title="Без прокси",
-            description="Подключиться напрямую без прокси",
-            text=ACCOUNT_PHONE_PROMPT,
-        ),
+            id=ADD_ACCOUNT_INLINE_RESULT_ID,
+            title="Добавить аккаунт",
+            description="Выбери способ подключения нового аккаунта",
+            text=f"{ADD_ACCOUNT_PROMPT}\n\nВыберите вариант ниже:",
+            buttons=_add_account_inline_keyboard(),
+        )
     ]
 
 
@@ -3998,6 +4009,34 @@ ACCOUNT_PHONE_PROMPT = (
     "Подключение будет без прокси. Пришли номер телефона (+7XXXXXXXXXX)"
 )
 
+
+def _init_account_add_manual(admin_id: int) -> str:
+    pending[admin_id] = {"flow": "account", "step": "proxy_manual"}
+    pending[admin_id].pop("proxy_config", None)
+    return ACCOUNT_PROXY_MANUAL_PROMPT
+
+
+def _init_account_add_direct(admin_id: int) -> str:
+    pending[admin_id] = {
+        "flow": "account",
+        "step": "phone",
+        "proxy_config": {"enabled": False},
+    }
+    return ACCOUNT_PHONE_PROMPT
+
+
+async def _send_account_add_prompt(admin_id: int, prompt_text: Optional[str]) -> None:
+    if not prompt_text:
+        return
+    try:
+        await bot_client.send_message(admin_id, prompt_text)
+    except Exception as send_error:
+        log.debug(
+            "[%s] не удалось отправить подсказку для добавления аккаунта: %s",
+            admin_id,
+            send_error,
+        )
+
 PHONE_CLEANUP_RE = re.compile(r"[\s()\-]")
 
 
@@ -4445,46 +4484,11 @@ async def _handle_reply_inline_send(update: types.UpdateBotInlineSend) -> None:
     await _execute_inline_reply_payload(admin_id, payload)
 
 
-async def _handle_add_account_inline_send(update: types.UpdateBotInlineSend) -> None:
-    admin_id = getattr(update, "user_id", None)
-    if admin_id is None or not is_admin(admin_id):
-        return
-
-    result_id = getattr(update, "id", "") or ""
-    if result_id not in {ADD_ACCOUNT_INLINE_MANUAL_ID, ADD_ACCOUNT_INLINE_DIRECT_ID}:
-        return
-
-    await cancel_operations(admin_id, notify=False)
-
-    st = pending.setdefault(admin_id, {"flow": "account"})
-    st["flow"] = "account"
-    prompt_text: Optional[str] = None
-    if result_id == ADD_ACCOUNT_INLINE_MANUAL_ID:
-        st["step"] = "proxy_manual"
-        st.pop("proxy_config", None)
-        prompt_text = ACCOUNT_PROXY_MANUAL_PROMPT
-    else:
-        st["step"] = "phone"
-        st["proxy_config"] = {"enabled": False}
-        prompt_text = ACCOUNT_PHONE_PROMPT
-
-    if prompt_text:
-        try:
-            await bot_client.send_message(admin_id, prompt_text)
-        except Exception as send_error:
-            log.debug(
-                "[%s] не удалось отправить подсказку для inline добавления: %s",
-                admin_id,
-                send_error,
-            )
-
-
 @bot_client.on(events.Raw)
 async def on_raw_update(ev):
     update = getattr(ev, "update", None)
     if isinstance(update, types.UpdateBotInlineSend):
         await _handle_reply_inline_send(update)
-        await _handle_add_account_inline_send(update)
 
 
 @bot_client.on(events.NewMessage(pattern="/start"))
@@ -4877,6 +4881,16 @@ async def on_cb(ev):
             admin_id,
             ADD_ACCOUNT_PROMPT,
         )
+        return
+
+    if data == ADD_ACCOUNT_INLINE_MANUAL_CALLBACK:
+        await answer_callback(ev)
+        await _send_account_add_prompt(admin_id, _init_account_add_manual(admin_id))
+        return
+
+    if data == ADD_ACCOUNT_INLINE_DIRECT_CALLBACK:
+        await answer_callback(ev)
+        await _send_account_add_prompt(admin_id, _init_account_add_direct(admin_id))
         return
 
     if data == "list":
