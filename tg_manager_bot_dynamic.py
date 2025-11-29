@@ -34,7 +34,7 @@ try:  # Telethon <= 1.33.1
     from telethon.errors import QueryIdInvalidError  # type: ignore[attr-defined]
 except ImportError:  # Telethon >= 1.34 moved/renamed the error
     from telethon.errors.rpcerrorlist import QueryIdInvalidError  # type: ignore[attr-defined]
-from telethon.tl.types import ReactionEmoji, User
+from telethon.tl.types import ReactionEmoji, User, InlineQueryResultArticle, InputTextMessageContent, InlineKeyboardMarkup
 
 if TYPE_CHECKING:
     from telethon.tl.custom.inlinebuilder import InlineBuilder
@@ -1426,14 +1426,14 @@ def _build_files_main_menu() -> List[InlineArticle]:
             id="files_delete",
             title="🗑 Удалить",
             description="Удалить из библиотеки",
-            text="Открываю меню удаления...",
-            buttons=[
+            input_message_content=InputTextMessageContent("Открываю список для удаления..."),
+            reply_markup=InlineKeyboardMarkup([
                 [Button.switch_inline(
-                    text="🗑 Открыть типы файлов",
+                    text="📂 Выбрать тип файлов",
                     query="files_del",
                     same_peer=True
                 )]
-            ],
+            ]),
         )
     )
 
@@ -4687,23 +4687,57 @@ async def on_inline_query(ev):
         inline_results = []
         for file_type, title, desc in file_types:
             inline_results.append(
-                InlineArticle(
+                InlineQueryResultArticle(
                     id=f"del_type_{file_type}",
                     title=title,
                     description=desc,
-                    text="Открываю список файлов...",
-                    buttons=[
+                    input_message_content=InputTextMessageContent("Открываю список для удаления..."),
+                    reply_markup=InlineKeyboardMarkup([
                         [Button.switch_inline(
-                            text=f"📋 Показать список",
-                            query=f"del_list_{file_type}",
+                            text="📋 Показать файлы",
+                            query=f"del_{file_type}_list",
                             same_peer=True
                         )]
-                    ],
+                    ]),
                 )
             )
-        results = await _render_inline_articles(ev.builder, inline_results)
-        await ev.answer(results, cache_time=0)
+        await ev.answer(inline_results, cache_time=0)
         return
+
+    # Показать список файлов для удаления конкретного типа
+    if normalized_query in ("del_paste_list", "del_voice_list", "del_video_list", "del_sticker_list"):
+        file_type = normalized_query[4:-5]  # Убираем "del_" и "_list"
+        if file_type in FILE_TYPE_LABELS:
+            files = list_templates_by_type(user_id, file_type)
+            inline_results = []
+
+            if not files:
+                label = FILE_TYPE_LABELS.get(file_type, file_type.title())
+                inline_results.append(
+                    InlineQueryResultArticle(
+                        id=f"del_{file_type}_empty",
+                        title=f"❌ {label} отсутствуют",
+                        description="Нет файлов для удаления",
+                        input_message_content=InputTextMessageContent("📭 В этой категории пока нет файлов"),
+                    )
+                )
+            else:
+                # Показываем все файлы (не ограничиваем до 25, так как это inline режим)
+                for idx, file_path in enumerate(files):
+                    file_name = os.path.basename(file_path)
+                    display_name = os.path.splitext(file_name)[0]
+
+                    inline_results.append(
+                        InlineQueryResultArticle(
+                            id=f"del_{file_type}_{idx}",
+                            title=f"🗑 {display_name}",
+                            description="Нажми для удаления",
+                            input_message_content=InputTextMessageContent(f"DEL_{file_type.upper()}_{idx}"),
+                        )
+                    )
+
+            await ev.answer(inline_results, cache_time=0)
+            return
 
     # Запуск процесса добавления конкретного типа файла
     if normalized_query.startswith("start_add_"):
@@ -4723,88 +4757,7 @@ async def on_inline_query(ev):
             await ev.answer(results, cache_time=0)
             return
 
-    # Показать список файлов для удаления
-    if normalized_query.startswith("del_list_"):
-        file_type = normalized_query[9:]  # Убираем "del_list_"
-        if file_type in FILE_TYPE_LABELS:
-            # Используем существующую функцию для получения списка файлов
-            files = list_templates_by_type(user_id, file_type)
-            inline_results = []
-            
-            if not files:
-                label = FILE_TYPE_LABELS.get(file_type, file_type.title())
-                inline_results.append(
-                    InlineArticle(
-                        id=f"del_{file_type}_empty",
-                        title=f"❌ {label} отсутствуют",
-                        description="Нет файлов для удаления",
-                        text="📭 В этой категории пока нет файлов",
-                    )
-                )
-            else:
-                # Показываем первые 25 файлов
-                limited_files = files[:25]
-                for idx, file_path in enumerate(limited_files):
-                    file_name = os.path.basename(file_path)
-                    display_name = os.path.splitext(file_name)[0]
-                    
-                    inline_results.append(
-                        InlineArticle(
-                            id=f"trigger_del_{file_type}_{idx}",
-                            title=f"🗑 {display_name}",
-                            description=f"Удалить: {file_name}",
-                            text=f"Подтверждение удаления файла...",
-                            buttons=[
-                                [Button.switch_inline(
-                                    text=f"❌ Удалить «{display_name[:20]}»",
-                                    query=f"confirm_del_{file_type}_{idx}",
-                                    same_peer=True
-                                )]
-                            ],
-                        )
-                    )
-                
-                if len(files) > 25:
-                    inline_results.append(
-                        InlineArticle(
-                            id=f"del_{file_type}_more",
-                            title=f"📋 ... ещё {len(files) - 25} файлов",
-                            description="Используйте поиск для доступа к остальным",
-                            text="📋 Слишком много файлов для отображения",
-                        )
-                    )
-            
-            results = await _render_inline_articles(ev.builder, inline_results)
-            await ev.answer(results, cache_time=0)
-            return
 
-    # Подтверждение удаления файла
-    if normalized_query.startswith("confirm_del_"):
-        parts = normalized_query[12:].split("_")  # Убираем "confirm_del_"
-        if len(parts) >= 2:
-            file_type = parts[0]
-            try:
-                file_idx = int(parts[1])
-                if file_type in FILE_TYPE_LABELS:
-                    files = list_templates_by_type(user_id, file_type)
-                    if 0 <= file_idx < len(files):
-                        file_path = files[file_idx]
-                        file_name = os.path.basename(file_path)
-                        
-                        # Плашка для подтверждения удаления (выбор запустит удаление)
-                        inline_results = [
-                            InlineArticle(
-                                id=f"execute_del_{file_type}_{file_idx}",
-                                title=f"✅ Удалить: {os.path.splitext(file_name)[0]}",
-                                description=f"Файл будет удалён: {file_name}",
-                                text=f"Удаление файла: {file_name}",
-                            )
-                        ]
-                        results = await _render_inline_articles(ev.builder, inline_results)
-                        await ev.answer(results, cache_time=0)
-                        return
-            except (ValueError, IndexError):
-                pass
 
     # Обработка запросов выбора типа файла для добавления (add_files_paste и т.д.)
     if normalized_query.startswith("add_files_"):
@@ -4944,35 +4897,6 @@ async def _handle_reply_inline_send(update: types.UpdateBotInlineSend) -> None:
                 logger.error(f"Failed to send file add prompt from inline: {e}")
         return
     
-    # Обработка плашек выполнения удаления файлов (execute_del_paste_0 и т.д.)
-    if result_id.startswith("execute_del_"):
-        parts = result_id[12:].split("_")  # Убираем "execute_del_"
-        if len(parts) >= 2:
-            file_type = parts[0]
-            try:
-                file_idx = int(parts[1])
-                if file_type in FILE_TYPE_LABELS:
-                    files = list_templates_by_type(admin_id, file_type)
-                    if 0 <= file_idx < len(files):
-                        file_path = files[file_idx]
-                        file_name = os.path.basename(file_path)
-                        
-                        # Удаляем файл
-                        try:
-                            os.remove(file_path)
-                            await bot_client.send_message(
-                                admin_id,
-                                f"✅ **Файл удалён:**\n`{file_name}`"
-                            )
-                        except Exception as e:
-                            logger.error(f"Failed to delete file {file_path}: {e}")
-                            await bot_client.send_message(
-                                admin_id,
-                                f"❌ **Ошибка при удалении:**\n`{e}`"
-                            )
-            except (ValueError, IndexError) as e:
-                logger.error(f"Failed to parse execute_del result_id: {e}")
-        return
     
     # Обработка плашек добавления файлов (старый формат add_start:paste и т.д.)
     if result_id.startswith("add_start:"):
@@ -6244,6 +6168,48 @@ async def on_text(ev):
                         )
                         if picker_error:
                             await send_temporary_message(admin_id, f"❌ {picker_error}")
+        with contextlib.suppress(Exception):
+            await ev.delete()
+        return
+
+    # Инлайновое удаление файла через служебные тексты DEL_FILETYPE_IDX
+    if text.startswith("DEL_PASTE_") or text.startswith("DEL_VOICE_") or text.startswith("DEL_VIDEO_") or text.startswith("DEL_STICKER_"):
+        # Парсим служебный текст: DEL_FILETYPE_IDX
+        parts = text.split("_", 2)
+        if len(parts) == 3:
+            _, file_type_str, idx_str = parts
+            file_type = file_type_str.lower()
+            if file_type in FILE_TYPE_LABELS:
+                try:
+                    idx = int(idx_str)
+                    files = list_templates_by_type(admin_id, file_type)
+                    if 0 <= idx < len(files):
+                        file_path = files[idx]
+                        file_name = os.path.basename(file_path)
+
+                        # Удаляем файл
+                        try:
+                            if os.path.exists(file_path):
+                                os.remove(file_path)
+                                await bot_client.send_message(
+                                    admin_id,
+                                    f"✅ **Файл удалён:**\n`{file_name}`"
+                                )
+                            else:
+                                await bot_client.send_message(
+                                    admin_id,
+                                    f"⚠️ **Файл уже отсутствует:**\n`{file_name}`"
+                                )
+                        except Exception as e:
+                            logger.error(f"Failed to delete file {file_path}: {e}")
+                            await bot_client.send_message(
+                                admin_id,
+                                f"❌ **Ошибка при удалении:**\n`{e}`"
+                            )
+                except (ValueError, IndexError) as e:
+                    logger.error(f"Failed to parse delete command: {text}, error: {e}")
+
+        # Удаляем служебное сообщение
         with contextlib.suppress(Exception):
             await ev.delete()
         return
