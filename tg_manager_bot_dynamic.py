@@ -4659,13 +4659,13 @@ async def on_inline_query(ev):
                 id="validate_accounts",
                 title="✅ Валидация",
                 description="Проверить аккаунты на валидность",
-                input_message_content=types.InputTextMessageContent("START_VALIDATE_ACCOUNTS"),
+                text="START_VALIDATE_ACCOUNTS",
             ),
             InlineArticle(
                 id="delete_account",
                 title="🗑 Удалить аккаунт",
                 description="Удалить один из аккаунтов",
-                input_message_content=types.InputTextMessageContent("START_DELETE_ACCOUNT"),
+                text="START_DELETE_ACCOUNT",
             ),
         ]
         results = await _render_inline_articles(ev.builder, inline_results)
@@ -4682,7 +4682,7 @@ async def on_inline_query(ev):
                     id="no_accounts",
                     title="❌ Нет аккаунтов",
                     description="Сначала добавьте аккаунт",
-                    input_message_content=types.InputTextMessageContent("Аккаунтов нет."),
+                    text="Аккаунтов нет.",
                 )
             )
         else:
@@ -4692,7 +4692,7 @@ async def on_inline_query(ev):
                         id=f"del_{phone}",
                         title=f"🗑 {phone}",
                         description="Нажмите для удаления",
-                        input_message_content=types.InputTextMessageContent(f"DEL_ACCOUNT_{phone}"),
+                        text=f"DEL_ACCOUNT_{phone}",
                     )
                 )
         results = await _render_inline_articles(ev.builder, inline_results)
