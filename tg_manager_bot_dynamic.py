@@ -111,7 +111,7 @@ API_KEYS = [
     {"api_id": 20149796, "api_hash": "ece55838826c41f32c4ccf4cbe74eee4"},
 ]
 
-BOT_TOKEN = "8235242869:AAGK7AA4c2whj0AuqRtnNTWa_1zTSzU4Wtk"   # токен бота от @BotFather
+BOT_TOKEN = "8419882268:AAGFE8VMR8JjQAUqAZS5XUHELZe_KbJG3dk"   # токен бота от @BotFather
 # Имя пользователя бота устанавливается во время запуска через get_me().
 BOT_USERNAME: Optional[str] = None
 # Изначальные супер-администраторы, которые могут выдавать доступ другим пользователям
