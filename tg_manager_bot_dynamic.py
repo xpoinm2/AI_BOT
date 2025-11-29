@@ -1397,30 +1397,76 @@ def _inline_command_text(command: str) -> str:
 
 
 def _build_files_main_menu() -> List[InlineArticle]:
-    """Инлайн-экран главного меню файлов: Добавить/Удалить."""
+    """Инлайн-экран главного меню файлов: Добавить/Удалить.
+    
+    Плашки с switch_inline кнопками для seamless перехода к выбору типа файлов.
+    """
     results = []
 
-    # Кнопка добавления файлов
+    # Кнопка добавления файлов с switch_inline кнопками для выбора типа
+    add_buttons = [
+        [
+            Button.switch_inline("📄 Пасты", query="add_paste", same_peer=True),
+            Button.switch_inline("🎙 Голосовые", query="add_voice", same_peer=True),
+        ],
+        [
+            Button.switch_inline("📹 Кружки", query="add_video", same_peer=True),
+            Button.switch_inline("💟 Стикеры", query="add_sticker", same_peer=True),
+        ],
+    ]
+    
     results.append(
         InlineArticle(
             id="files_add",
             title="➕ Добавить",
             description="Добавить файлы в библиотеку",
-            text="Выбери тип файлов для добавления:",
+            text="Выберите тип файлов для добавления:",
+            buttons=add_buttons,
         )
     )
 
-    # Кнопка удаления файлов
+    # Кнопка удаления файлов с switch_inline кнопками для выбора типа
+    del_buttons = [
+        [
+            Button.switch_inline("📄 Пасты", query="del_paste", same_peer=True),
+            Button.switch_inline("🎙 Голосовые", query="del_voice", same_peer=True),
+        ],
+        [
+            Button.switch_inline("📹 Кружки", query="del_video", same_peer=True),
+            Button.switch_inline("💟 Стикеры", query="del_sticker", same_peer=True),
+        ],
+    ]
+    
     results.append(
         InlineArticle(
             id="files_delete",
             title="🗑 Удалить",
             description="Удалить файлы из библиотеки",
-            text="Выбери тип файлов для удаления:",
+            text="Выберите тип файлов для удаления:",
+            buttons=del_buttons,
         )
     )
 
     return results
+
+
+def _build_add_file_results(user_id: int, file_type: str) -> List[InlineArticle]:
+    """Создаёт плашки для добавления файлов конкретного типа.
+    
+    При выборе плашки запускается процесс добавления файла в ЛС бота.
+    """
+    label = FILE_TYPE_LABELS.get(file_type, file_type.title())
+    
+    # Создаем плашку, которая при выборе запустит процесс добавления
+    result = InlineArticle(
+        id=f"add_start:{file_type}",
+        title=f"➕ Добавить {label.lower()}",
+        description=f"Начать процесс добавления {label.lower()} в библиотеку",
+        text=f"🚀 Запускаю процесс добавления {label.lower()}...\n\n"
+             f"Следуйте инструкциям в личных сообщениях бота.",
+    )
+    
+    return [result]
 
 
 async def _handle_inline_file_action(user_id: int, action: str, file_type: str):
@@ -4481,33 +4527,36 @@ async def on_inline_query(ev):
         return
 
     # Обработка специальных inline-запросов для красивой цепочки файлов
-    if normalized_query == "файлы":
+    # Главное меню: "файлы", "files"
+    if normalized_query in ("файлы", "files"):
         results = await _render_inline_articles(
             ev.builder, _build_files_main_menu()
         )
         await ev.answer(results, cache_time=0)
         return
 
-    # Обработка выбора режима добавления/удаления файлов
-    if normalized_query in {"files_add", "files_delete"}:
-        mode = "add" if normalized_query == "files_add" else "delete"
-        results = await _render_inline_articles(
-            ev.builder, _build_inline_type_results(user_id, mode)
-        )
-        await ev.answer(results, cache_time=0)
-        return
-
     # Обработка конкретных действий (add_paste, del_voice и т.д.)
+    # Вызываются через switch_inline кнопки из главного меню
     if raw_query.startswith(("add_", "del_")):
         parts = raw_query.split("_", 1)
         if len(parts) == 2:
             action, file_type = parts
             if action in ("add", "del") and file_type in FILE_TYPE_LABELS:
-                # Имитируем нажатие на кнопку добавления/удаления файла
-                await _handle_inline_file_action(user_id, action, file_type)
-                # Возвращаем пустой результат, так как действие уже выполнено
-                await ev.answer([], cache_time=0)
-                return
+                # Для добавления: показываем плашки с процессом добавления
+                if action == "add":
+                    results = await _render_inline_articles(
+                        ev.builder, _build_add_file_results(user_id, file_type)
+                    )
+                    await ev.answer(results, cache_time=0)
+                    return
+                
+                # Для удаления: показываем список файлов для удаления
+                else:  # action == "del"
+                    results = await _render_inline_articles(
+                        ev.builder, _build_library_file_results(user_id, file_type, "", mode="delete")
+                    )
+                    await ev.answer(results, cache_time=0)
+                    return
 
     parts = raw_query.split()
     # Сносим префикс library / files / file / lib
@@ -4574,6 +4623,21 @@ async def _handle_reply_inline_send(update: types.UpdateBotInlineSend) -> None:
         return
 
     result_id = getattr(update, "id", "") or ""
+    
+    # Обработка плашек добавления файлов (add_start:paste и т.д.)
+    if result_id.startswith("add_start:"):
+        file_type = result_id.split(":", 1)[1]
+        if file_type in FILE_TYPE_LABELS:
+            # Запускаем процесс добавления файла
+            pending[admin_id] = {"flow": "file", "file_type": file_type, "step": "name"}
+            prompt = FILE_TYPE_ADD_PROMPTS[file_type]
+            try:
+                await bot_client.send_message(admin_id, prompt)
+            except Exception as e:
+                logger.error(f"Failed to send file add prompt from inline: {e}")
+        return
+    
+    # Обработка стандартных inline reply результатов
     if not result_id.startswith(INLINE_REPLY_RESULT_PREFIX):
         return
 
