@@ -4706,8 +4706,16 @@ async def on_inline_query(ev):
         return
 
     # Показать список файлов для удаления конкретного типа
-    if normalized_query in ("del_paste_list", "del_voice_list", "del_video_list", "del_sticker_list"):
-        file_type = normalized_query[4:-5]  # Убираем "del_" и "_list"
+    if raw_query in ("del_paste_list", "del_voice_list", "del_video_list", "del_sticker_list") or normalized_query in ("del paste list", "del voice list", "del video list", "del sticker list"):
+        if raw_query in ("del_paste_list", "del_voice_list", "del_video_list", "del_sticker_list"):
+            file_type = raw_query[4:-5]  # Убираем "del_" и "_list"
+        else:
+            # Для normalized_query с пробелами
+            parts = normalized_query.split()
+            if len(parts) == 3 and parts[0] == "del" and parts[2] == "list":
+                file_type = parts[1]
+            else:
+                file_type = ""
         if file_type in FILE_TYPE_LABELS:
             files = list_templates_by_type(user_id, file_type)
             inline_results = []
