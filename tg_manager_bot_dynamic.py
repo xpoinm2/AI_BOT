@@ -24,7 +24,6 @@ from telethon import TelegramClient, events, Button, functions, helpers, types
 from OpenAi_helper import generate_dating_ai_variants, recommend_dating_ai_variant
 from telethon.utils import get_display_name
 from telethon.sessions import StringSession
-from telethon.tl.types import InputTextMessageContent, InlineQueryResultArticle
 from telethon.errors import (
     SessionPasswordNeededError,
     FloodWaitError,
