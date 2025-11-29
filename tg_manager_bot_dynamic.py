@@ -6468,7 +6468,11 @@ async def startup():
     log.info("Startup notification suppressed to avoid spamming users.")
 
 def main():
-    loop = asyncio.get_event_loop()
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
     loop.run_until_complete(startup())
     try:
         loop.run_forever()
