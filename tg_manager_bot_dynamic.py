@@ -922,25 +922,8 @@ INLINE_REPLY_TOKEN_TRACK = 512
 _inline_reply_token_queue: "deque[str]" = deque()
 _inline_reply_token_seen: Set[str] = set()
 
-ADD_ACCOUNT_INLINE_QUERIES = {"add account", "account add"}
-ADD_ACCOUNT_INLINE_RESULT_ID = "add_account_choice"
-ADD_ACCOUNT_INLINE_MANUAL_CALLBACK = "add_inline_proxy_manual"
-ADD_ACCOUNT_INLINE_DIRECT_CALLBACK = "add_inline_proxy_none"
 
 
-def _add_account_inline_keyboard() -> List[List[Button]]:
-    return [
-        [
-            Button.inline(
-                "🌐 Ввести прокси", ADD_ACCOUNT_INLINE_MANUAL_CALLBACK.encode()
-            )
-        ],
-        [
-            Button.inline(
-                "⚡️ Без прокси", ADD_ACCOUNT_INLINE_DIRECT_CALLBACK.encode()
-            )
-        ],
-    ]
 
 
 @dataclass
@@ -968,12 +951,17 @@ def library_inline_button(file_type: str, label: str) -> Button:
 def _build_add_account_inline_results() -> List[InlineArticle]:
     return [
         InlineArticle(
-            id=ADD_ACCOUNT_INLINE_RESULT_ID,
-            title="Добавить аккаунт",
-            description="Выбери способ подключения нового аккаунта",
-            text=f"{ADD_ACCOUNT_PROMPT}\n\nВыберите вариант ниже:",
-            buttons=_add_account_inline_keyboard(),
-        )
+            id="add_account_with_proxy",
+            title="Ввести прокси",
+            description="Сначала указать прокси, потом номер",
+            text="START_ADD_WITH_PROXY",
+        ),
+        InlineArticle(
+            id="add_account_without_proxy",
+            title="Без прокси",
+            description="Сразу ввести номер телефона",
+            text="START_ADD_WITHOUT_PROXY",
+        ),
     ]
 
 
@@ -1276,25 +1264,6 @@ def _extract_library_command_query(text: str) -> Optional[str]:
     ):
         return " ".join(tokens)
     return None
-
-
-def _strip_inline_bot_username_prefix(query: str) -> str:
-    """Remove the bot mention prefix from inline queries when present."""
-
-    if not query:
-        return query
-    username = BOT_USERNAME or ""
-    if not username:
-        return query
-    parts = query.strip().split()
-    if not parts:
-        return query
-    first = parts[0]
-    if not first.startswith("@"):
-        return query
-    if first[1:].lower() != username.lower():
-        return query
-    return " ".join(parts[1:]).strip()
 
 
 def _render_library_command(owner_id: int, query: str) -> str:
@@ -4405,17 +4374,18 @@ async def on_inline_query(ev):
         return
 
     raw_query = (ev.text or "").strip()
-    cleaned_query = _strip_inline_bot_username_prefix(raw_query)
-    normalized_query = " ".join(cleaned_query.replace("_", " ").split()).strip().lower()
+    normalized_query = " ".join(raw_query.replace("_", " ").split()).strip().lower()
 
-    if normalized_query in ADD_ACCOUNT_INLINE_QUERIES:
+    # Проверка на запросы добавления аккаунта (содержащие ключевые слова)
+    account_keywords = {"add", "аккаунт", "account", "добавить"}
+    if any(keyword in normalized_query for keyword in account_keywords):
         results = await _render_inline_articles(
             ev.builder, _build_add_account_inline_results()
         )
         await ev.answer(results, cache_time=0)
         return
     
-    reply_query = _parse_reply_inline_query(cleaned_query)
+    reply_query = _parse_reply_inline_query(raw_query)
     if reply_query is not None:
         ctx_id, mode = reply_query
         if not ctx_id:
@@ -4426,7 +4396,7 @@ async def on_inline_query(ev):
         await ev.answer(rendered, cache_time=0)
         return
 
-    parts = cleaned_query.split()
+    parts = raw_query.split()
     # Сносим префикс library / files / file / lib
     if parts and parts[0].lower() in LIBRARY_INLINE_QUERY_PREFIXES:
         parts = parts[1:]
@@ -4903,15 +4873,6 @@ async def on_cb(ev):
         )
         return
 
-    if data == ADD_ACCOUNT_INLINE_MANUAL_CALLBACK:
-        await answer_callback(ev)
-        await _send_account_add_prompt(admin_id, _init_account_add_manual(admin_id))
-        return
-
-    if data == ADD_ACCOUNT_INLINE_DIRECT_CALLBACK:
-        await answer_callback(ev)
-        await _send_account_add_prompt(admin_id, _init_account_add_direct(admin_id))
-        return
 
     if data == "list":
         accounts = get_accounts_meta(admin_id)
@@ -5704,6 +5665,16 @@ async def on_text(ev):
     text = (ev.raw_text or "").strip()
 
     await ensure_menu_button_hidden(admin_id)
+
+    # Обработка служебных фраз для добавления аккаунта
+    if text == "START_ADD_WITH_PROXY":
+        await ev.delete()  # Удаляем служебное сообщение
+        await _send_account_add_prompt(admin_id, _init_account_add_manual(admin_id))
+        return
+    elif text == "START_ADD_WITHOUT_PROXY":
+        await ev.delete()  # Удаляем служебное сообщение
+        await _send_account_add_prompt(admin_id, _init_account_add_direct(admin_id))
+        return
 
     sentinel_index = text.find(INLINE_REPLY_SENTINEL)
     if sentinel_index != -1:
