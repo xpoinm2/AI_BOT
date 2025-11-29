@@ -4498,12 +4498,12 @@ def files_add_menu() -> List[List[Button]]:
 def files_delete_menu() -> List[List[Button]]:
     return [
         [
-            Button.inline("📄 Пасты", b"files_delete_paste"),
-            Button.inline("🎙 Голосовые", b"files_delete_voice"),
+            Button.switch_inline("📄 Пасты", query="del_paste_list", same_peer=True),
+            Button.switch_inline("🎙 Голосовые", query="del_voice_list", same_peer=True),
         ],
         [
-            Button.inline("📹 Кружки", b"files_delete_video"),
-            Button.inline("💟 Стикеры", b"files_delete_sticker"),
+            Button.switch_inline("📹 Кружки", query="del_video_list", same_peer=True),
+            Button.switch_inline("💟 Стикеры", query="del_sticker_list", same_peer=True),
         ],
         [Button.inline("⬅️ Назад", b"back")],
     ]
@@ -5311,26 +5311,6 @@ async def on_cb(ev):
         await bot_client.send_message(admin_id, "Введите название стикера:")
         return
 
-    if data.startswith("files_delete_"):
-        _, _, file_type = data.partition("files_delete_")
-        if file_type not in FILE_TYPE_LABELS:
-            await answer_callback(ev, "Неизвестный тип", alert=True)
-            return
-        files = list_templates_by_type(admin_id, file_type)
-        if not files:
-            await answer_callback(ev, "Файлов не найдено", alert=True)
-            await ev.edit(
-                f"{FILE_TYPE_LABELS[file_type]} отсутствуют.",
-                buttons=files_delete_menu(),
-            )
-            return
-        buttons, page, total_pages, _ = build_file_delete_keyboard(files, file_type)
-        caption = format_page_caption(
-            f"{FILE_TYPE_LABELS[file_type]} для удаления", page, total_pages
-        )
-        await answer_callback(ev)
-        await ev.edit(caption, buttons=buttons)
-        return
 
     if data == "add":
         pending[admin_id] = {"flow": "account", "step": "proxy_or_phone"}
