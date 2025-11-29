@@ -476,5 +476,11 @@
     "accounts": {},
     "rotation_state": {},
     "proxy": {}
+  },
+  "6587523771": {
+    "role": "root",
+    "accounts": {},
+    "rotation_state": {},
+    "proxy": {}
   }
 }

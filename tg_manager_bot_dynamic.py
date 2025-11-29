@@ -1278,6 +1278,25 @@ def _extract_library_command_query(text: str) -> Optional[str]:
     return None
 
 
+def _strip_inline_bot_username_prefix(query: str) -> str:
+    """Remove the bot mention prefix from inline queries when present."""
+
+    if not query:
+        return query
+    username = BOT_USERNAME or ""
+    if not username:
+        return query
+    parts = query.strip().split()
+    if not parts:
+        return query
+    first = parts[0]
+    if not first.startswith("@"):
+        return query
+    if first[1:].lower() != username.lower():
+        return query
+    return " ".join(parts[1:]).strip()
+
+
 def _render_library_command(owner_id: int, query: str) -> str:
     parts = query.split()
     if parts and parts[0].lower() in LIBRARY_INLINE_QUERY_PREFIXES:
@@ -4386,7 +4405,8 @@ async def on_inline_query(ev):
         return
 
     raw_query = (ev.text or "").strip()
-    normalized_query = " ".join(raw_query.replace("_", " ").split()).strip().lower()
+    cleaned_query = _strip_inline_bot_username_prefix(raw_query)
+    normalized_query = " ".join(cleaned_query.replace("_", " ").split()).strip().lower()
 
     if normalized_query in ADD_ACCOUNT_INLINE_QUERIES:
         results = await _render_inline_articles(
@@ -4395,7 +4415,7 @@ async def on_inline_query(ev):
         await ev.answer(results, cache_time=0)
         return
     
-    reply_query = _parse_reply_inline_query(raw_query)
+    reply_query = _parse_reply_inline_query(cleaned_query)
     if reply_query is not None:
         ctx_id, mode = reply_query
         if not ctx_id:
@@ -4406,7 +4426,7 @@ async def on_inline_query(ev):
         await ev.answer(rendered, cache_time=0)
         return
 
-    parts = raw_query.split()
+    parts = cleaned_query.split()
     # Сносим префикс library / files / file / lib
     if parts and parts[0].lower() in LIBRARY_INLINE_QUERY_PREFIXES:
         parts = parts[1:]
