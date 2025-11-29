@@ -4461,7 +4461,7 @@ def main_menu():
                 "➕ Добавить аккаунт ↗", query="add account", same_peer=True
             )
         ],
-        [Button.inline("📋 Список аккаунтов ↗", b"list")],
+        [Button.inline("Список аккаунтов →", b"show_accounts_menu")],
         [library_inline_button("", "📁 Файлы ↗")],
     ]
 
@@ -4829,6 +4829,26 @@ async def on_inline_query(ev):
                     )
                     await ev.answer(results, cache_time=0)
                     return
+
+    # Обработка меню аккаунтов
+    if raw_query == "accounts_menu":
+        inline_results = [
+            InlineArticle(
+                id="validate_accounts",
+                title="Валидация",
+                description="Проверить аккаунты",
+                input_message_content=types.InputTextMessageContent("START_VALIDATE"),
+            ),
+            InlineArticle(
+                id="delete_account",
+                title="Удалить аккаунт",
+                description="Удалить один аккаунт",
+                input_message_content=types.InputTextMessageContent("START_DELETE_ACCOUNT"),
+            ),
+        ]
+        results = await _render_inline_articles(ev.builder, inline_results)
+        await ev.answer(results, cache_time=0)
+        return
 
     parts = raw_query.split()
     # Сносим префикс library / files / file / lib
@@ -5350,6 +5370,16 @@ async def on_cb(ev):
             admin_id,
             "Выберите действие:",
             buttons=account_control_menu(),
+        )
+        return
+
+    if data == "show_accounts_menu":
+        await answer_callback(ev)
+        await edit_or_send_message(
+            ev,
+            admin_id,
+            "Выберите действие для аккаунтов",
+            buttons=[[Button.switch_inline("Открыть меню аккаунтов", query="accounts_menu", same_peer=True)]],
         )
         return
 
@@ -6109,6 +6139,28 @@ async def on_text(ev):
     elif text == "START_ADD_WITHOUT_PROXY":
         await ev.delete()  # Удаляем служебное сообщение
         await _send_account_add_prompt(admin_id, _init_account_add_direct(admin_id))
+        return
+
+    # Обработка служебных фраз для меню аккаунтов
+    elif text == "START_VALIDATE":
+        await ev.delete()  # Удаляем служебное сообщение
+        accounts = get_accounts_meta(admin_id)
+        if not accounts:
+            await bot_client.send_message(admin_id, "Аккаунтов нет.")
+            return
+        buttons, page, total_pages, _ = build_account_buttons(admin_id, "val_do")
+        caption = format_page_caption("Выбери аккаунт для проверки", page, total_pages)
+        await bot_client.send_message(admin_id, caption, buttons=buttons)
+        return
+    elif text == "START_DELETE_ACCOUNT":
+        await ev.delete()  # Удаляем служебное сообщение
+        accounts = get_accounts_meta(admin_id)
+        if not accounts:
+            await bot_client.send_message(admin_id, "Аккаунтов нет.")
+            return
+        buttons, page, total_pages, _ = build_account_buttons(admin_id, "del_do")
+        caption = format_page_caption("Выбери аккаунт для удаления", page, total_pages)
+        await bot_client.send_message(admin_id, caption, buttons=buttons)
         return
 
     sentinel_index = text.find(INLINE_REPLY_SENTINEL)
