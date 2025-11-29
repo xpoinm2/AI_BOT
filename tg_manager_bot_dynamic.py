@@ -4493,7 +4493,7 @@ def main_menu():
                 "➕ Добавить аккаунт ↗", query="add account", same_peer=True
             )
         ],
-        [Button.inline("Список аккаунтов →", b"show_accounts_menu")],
+        [Button.switch_inline("Список аккаунтов →", query="accounts_menu", same_peer=True)],
         [library_inline_button("", "📁 Файлы ↗")],
     ]
 
@@ -4869,7 +4869,7 @@ async def on_inline_query(ev):
                 id="validate_accounts",
                 title="Валидация",
                 description="Проверить аккаунты",
-                input_message_content=types.InputTextMessageContent("START_VALIDATE"),
+                input_message_content=types.InputTextMessageContent("START_VALIDATE_ACCOUNTS"),
             ),
             InlineArticle(
                 id="delete_account",
@@ -4878,6 +4878,23 @@ async def on_inline_query(ev):
                 input_message_content=types.InputTextMessageContent("START_DELETE_ACCOUNT"),
             ),
         ]
+        results = await _render_inline_articles(ev.builder, inline_results)
+        await ev.answer(results, cache_time=0)
+        return
+
+    # Обработка списка аккаунтов для удаления
+    if raw_query == "delete_account_list":
+        accounts = get_accounts_meta(user_id)
+        inline_results = []
+        for phone in accounts:
+            inline_results.append(
+                InlineArticle(
+                    id=f"del_{phone}",
+                    title=phone,
+                    description="Нажмите для удаления",
+                    input_message_content=types.InputTextMessageContent(f"DEL_ACCOUNT_{phone}"),
+                )
+            )
         results = await _render_inline_articles(ev.builder, inline_results)
         await ev.answer(results, cache_time=0)
         return
@@ -5401,17 +5418,6 @@ async def on_cb(ev):
             ev,
             admin_id,
             "Выберите действие:",
-            buttons=account_control_menu(),
-        )
-        return
-
-    if data == "show_accounts_menu":
-        await answer_callback(ev)
-        # Показываем две inline кнопки сразу
-        await edit_or_send_message(
-            ev,
-            admin_id,
-            "Выберите действие:",  # Выберите действие
             buttons=account_control_menu(),
         )
         return
@@ -6235,15 +6241,15 @@ async def on_text(ev):
         return
 
     # Обработка служебных фраз для меню аккаунтов
-    elif text == "START_VALIDATE":
+    elif text == "START_VALIDATE_ACCOUNTS":
         await ev.delete()  # Удаляем служебное сообщение
         accounts = get_accounts_meta(admin_id)
         if not accounts:
             await bot_client.send_message(admin_id, "Аккаунтов нет.")
             return
-        buttons, page, total_pages, _ = build_account_buttons(admin_id, "val_do")
-        caption = format_page_caption("Выбери аккаунт для проверки", page, total_pages)
-        await bot_client.send_message(admin_id, caption, buttons=buttons)
+        # Запуск валидации всех аккаунтов
+        result_text = await validate_all_accounts(admin_id)
+        await bot_client.send_message(admin_id, result_text, buttons=main_menu())
         return
     elif text == "START_DELETE_ACCOUNT":
         await ev.delete()  # Удаляем служебное сообщение
@@ -6251,9 +6257,36 @@ async def on_text(ev):
         if not accounts:
             await bot_client.send_message(admin_id, "Аккаунтов нет.")
             return
-        buttons, page, total_pages, _ = build_account_buttons(admin_id, "del_do")
-        caption = format_page_caption("Выбери аккаунт для удаления", page, total_pages)
-        await bot_client.send_message(admin_id, caption, buttons=buttons)
+        # Показываем кнопку для открытия inline режима со списком аккаунтов
+        buttons = [[Button.switch_inline("Выбрать аккаунт для удаления", query="delete_account_list", same_peer=True)]]
+        await bot_client.send_message(admin_id, "Нажмите кнопку для выбора аккаунта:", buttons=buttons)
+        return
+    
+    # Обработка удаления аккаунта из inline плашки
+    elif text.startswith("DEL_ACCOUNT_"):
+        await ev.delete()  # Удаляем служебное сообщение
+        phone = text[len("DEL_ACCOUNT_"):]
+        worker = get_worker(admin_id, phone)
+        if worker:
+            await worker.logout()
+            unregister_worker(admin_id, phone)
+        # Очищаем контексты
+        for ctx_key, ctx_val in list(reply_contexts.items()):
+            if ctx_val.get("phone") == phone and ctx_val.get("owner_id") == admin_id:
+                reply_contexts.pop(ctx_key, None)
+                for admin_key, waiting_ctx in list(reply_waiting.items()):
+                    if waiting_ctx.get("ctx") == ctx_key:
+                        reply_waiting.pop(admin_key, None)
+        # Очищаем уведомления
+        threads = notification_threads.get(admin_id)
+        if threads:
+            prefix = f"{phone}:"
+            for thread_id in list(threads.keys()):
+                if thread_id.startswith(prefix):
+                    threads.pop(thread_id, None)
+            if not threads:
+                notification_threads.pop(admin_id, None)
+        await bot_client.send_message(admin_id, f"Аккаунт {phone} удалён.", buttons=main_menu())
         return
 
     sentinel_index = text.find(INLINE_REPLY_SENTINEL)
