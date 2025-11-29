@@ -5412,10 +5412,7 @@ async def on_cb(ev):
             ev,
             admin_id,
             "Выберите действие:",  # Выберите действие
-            buttons=[
-                [Button.inline("Валидация", b"validate_all_accounts")],
-                [Button.inline("Удалить аккаунт", b"delete_account_menu")],
-            ],
+            buttons=account_control_menu(),
         )
         return
 
