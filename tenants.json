@@ -479,8 +479,24 @@
   },
   "6587523771": {
     "role": "root",
-    "accounts": {},
-    "rotation_state": {},
+    "accounts": {
+      "+79882124542": {
+        "phone": "+79882124542",
+        "api_id": 29762521,
+        "device": "iPhone 12",
+        "session_file": "sessions\\6587523771\\+79882124542.session",
+        "proxy_override": {
+          "enabled": false
+        },
+        "proxy_desc": "None",
+        "proxy_dynamic": false,
+        "full_name": "Отл 2г"
+      }
+    },
+    "rotation_state": {
+      "api_idx": 0,
+      "dev_idx": 0
+    },
     "proxy": {}
   }
 }
