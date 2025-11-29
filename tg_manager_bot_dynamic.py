@@ -4461,7 +4461,7 @@ def main_menu():
                 "➕ Добавить аккаунт ↗", query="add account", same_peer=True
             )
         ],
-        [Button.inline("📋 Список аккаунтов", b"list")],
+        [Button.inline("📋 Список аккаунтов ↗", b"list")],
         [library_inline_button("", "📁 Файлы ↗")],
     ]
 
@@ -5344,40 +5344,11 @@ async def on_cb(ev):
                 buttons=main_menu(),
             )
             return
-        lines = ["Аккаунты:"]
-        for p, m in accounts.items():
-            worker = get_worker(admin_id, p)
-            active = bool(worker and worker.started)
-            state = m.get("state")
-            note_extra = ""
-            if m.get("state_note"):
-                note_extra = f" ({m['state_note']})"
-            if state == "banned":
-                status = "⛔️"
-                note = " | заблокирован Telegram"
-            elif state == "frozen":
-                status = "🧊"
-                note = " | заморожен Telegram"
-            elif m.get("session_invalid"):
-                status = "❌"
-                note = " | требуется повторный вход"
-            elif active:
-                status = "🟢"
-                note = ""
-            else:
-                status = "⚠️"
-                note = " | неактивен"
-            proxy_label = m.get("proxy_desc") or "None"
-            if m.get("proxy_dynamic"):
-                proxy_label = f"{proxy_label} (dyn)"
-            lines.append(
-                f"• {status} {p} | api:{m.get('api_id')} | dev:{m.get('device','')} | proxy:{proxy_label}{note}{note_extra}"
-            )
         await answer_callback(ev)
         await edit_or_send_message(
             ev,
             admin_id,
-            "\n".join(lines),
+            "Выберите действие:",
             buttons=account_control_menu(),
         )
         return
