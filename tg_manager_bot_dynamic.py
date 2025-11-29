@@ -1396,6 +1396,88 @@ def _inline_command_text(command: str) -> str:
     return f"{prefix}{command}".strip()
 
 
+def _build_files_main_menu() -> List[InlineArticle]:
+    """Инлайн-экран главного меню файлов: Добавить/Удалить + типы файлов."""
+    results = []
+
+    # Добавление файлов
+    for file_type, label in FILE_TYPE_LABELS.items():
+        results.append(
+            InlineArticle(
+                id=f"add_{file_type}",
+                title=f"➕ {label}",
+                description="Добавить в библиотеку",
+                text=f"Начать добавление {label.lower()}:",
+            )
+        )
+
+    # Удаление файлов
+    for file_type, label in FILE_TYPE_LABELS.items():
+        results.append(
+            InlineArticle(
+                id=f"del_{file_type}",
+                title=f"🗑 {label}",
+                description="Удалить из библиотеки",
+                text=f"Выбрать {label.lower()} для удаления:",
+            )
+        )
+
+    return results
+
+
+async def _handle_inline_file_action(user_id: int, action: str, file_type: str):
+    """Имитирует нажатие на кнопку добавления/удаления файла из inline-режима."""
+    from telethon.tl.custom import Message
+
+    # Создаем фиктивный callback event для имитации нажатия кнопки
+    class FakeCallbackEvent:
+        def __init__(self, user_id, data):
+            self.sender_id = user_id
+            self.data = data
+
+    if action == "add":
+        # Имитируем добавление файла
+        callback_data = FILE_TYPE_ADD_CALLBACK[file_type]
+        fake_ev = FakeCallbackEvent(user_id, callback_data.encode())
+
+        # Вызываем логику добавления файла
+        pending[user_id] = {"flow": "file", "file_type": file_type, "step": "name"}
+        prompt = FILE_TYPE_ADD_PROMPTS[file_type]
+
+        try:
+            await bot_client.send_message(user_id, prompt)
+        except Exception as e:
+            logger.error(f"Failed to send file add prompt: {e}")
+
+    elif action == "delete":
+        # Имитируем удаление файла
+        callback_data = f"files_delete_{file_type}"
+        fake_ev = FakeCallbackEvent(user_id, callback_data.encode())
+
+        # Получаем файлы для удаления
+        files = list_templates_by_type(user_id, file_type)
+        if not files:
+            try:
+                await bot_client.send_message(
+                    user_id,
+                    f"{FILE_TYPE_LABELS[file_type]} отсутствуют.",
+                )
+            except Exception as e:
+                logger.error(f"Failed to send file delete message: {e}")
+            return
+
+        # Показываем меню удаления файлов
+        buttons, page, total_pages, _ = build_file_delete_keyboard(files, file_type)
+        caption = format_page_caption(
+            f"{FILE_TYPE_LABELS[file_type]} для удаления", page, total_pages
+        )
+
+        try:
+            await bot_client.send_message(user_id, caption, buttons=buttons)
+        except Exception as e:
+            logger.error(f"Failed to send file delete menu: {e}")
+
+
 def _build_inline_type_results(owner_id: int, mode: str) -> List[InlineArticle]:
     """Инлайн-экран выбора типа файлов для добавления/удаления."""
 
@@ -4357,8 +4439,12 @@ def build_account_buttons(owner_id: int, prefix: str, page: int = 0) -> Tuple[Li
 async def on_inline_query(ev):
     """Обработка inline-запросов.
 
-    Используется только для работы с файловой библиотекой:
-    - library
+    Используется для работы с файловой библиотекой и быстрого доступа к файлам:
+    - файлы (главное меню Добавить/Удалить)
+    - add_files, del_files (выбор типа файла)
+    - add_paste, add_voice, add_video, add_sticker (добавление файлов)
+    - del_paste, del_voice, del_video, del_sticker (удаление файлов)
+    - library, lib, files (стандартный поиск по библиотеке)
     - library add/delete
     - library <type>
     - library delete <type>
@@ -4395,6 +4481,26 @@ async def on_inline_query(ev):
         rendered = await _render_inline_articles(ev.builder, results)
         await ev.answer(rendered, cache_time=0)
         return
+
+    # Обработка специальных inline-запросов для красивой цепочки файлов
+    if normalized_query == "файлы":
+        results = await _render_inline_articles(
+            ev.builder, _build_files_main_menu()
+        )
+        await ev.answer(results, cache_time=0)
+        return
+
+    # Обработка конкретных действий (add_paste, del_voice и т.д.)
+    if raw_query.startswith(("add_", "del_")):
+        parts = raw_query.split("_", 1)
+        if len(parts) == 2:
+            action, file_type = parts
+            if action in ("add", "del") and file_type in FILE_TYPE_LABELS:
+                # Имитируем нажатие на кнопку добавления/удаления файла
+                await _handle_inline_file_action(user_id, action, file_type)
+                # Возвращаем пустой результат, так как действие уже выполнено
+                await ev.answer([], cache_time=0)
+                return
 
     parts = raw_query.split()
     # Сносим префикс library / files / file / lib
