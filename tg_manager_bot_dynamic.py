@@ -1397,30 +1397,28 @@ def _inline_command_text(command: str) -> str:
 
 
 def _build_files_main_menu() -> List[InlineArticle]:
-    """Инлайн-экран главного меню файлов: Добавить/Удалить + типы файлов."""
+    """Инлайн-экран главного меню файлов: Добавить/Удалить."""
     results = []
 
-    # Добавление файлов
-    for file_type, label in FILE_TYPE_LABELS.items():
-        results.append(
-            InlineArticle(
-                id=f"add_{file_type}",
-                title=f"➕ {label}",
-                description="Добавить в библиотеку",
-                text=f"Начать добавление {label.lower()}:",
-            )
+    # Кнопка добавления файлов
+    results.append(
+        InlineArticle(
+            id="files_add",
+            title="➕ Добавить",
+            description="Добавить файлы в библиотеку",
+            text="Выбери тип файлов для добавления:",
         )
+    )
 
-    # Удаление файлов
-    for file_type, label in FILE_TYPE_LABELS.items():
-        results.append(
-            InlineArticle(
-                id=f"del_{file_type}",
-                title=f"🗑 {label}",
-                description="Удалить из библиотеки",
-                text=f"Выбрать {label.lower()} для удаления:",
-            )
+    # Кнопка удаления файлов
+    results.append(
+        InlineArticle(
+            id="files_delete",
+            title="🗑 Удалить",
+            description="Удалить файлы из библиотеки",
+            text="Выбери тип файлов для удаления:",
         )
+    )
 
     return results
 
@@ -4486,6 +4484,15 @@ async def on_inline_query(ev):
     if normalized_query == "файлы":
         results = await _render_inline_articles(
             ev.builder, _build_files_main_menu()
+        )
+        await ev.answer(results, cache_time=0)
+        return
+
+    # Обработка выбора режима добавления/удаления файлов
+    if normalized_query in {"files_add", "files_delete"}:
+        mode = "add" if normalized_query == "files_add" else "delete"
+        results = await _render_inline_articles(
+            ev.builder, _build_inline_type_results(user_id, mode)
         )
         await ev.answer(results, cache_time=0)
         return
