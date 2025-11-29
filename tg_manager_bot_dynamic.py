@@ -34,7 +34,7 @@ try:  # Telethon <= 1.33.1
     from telethon.errors import QueryIdInvalidError  # type: ignore[attr-defined]
 except ImportError:  # Telethon >= 1.34 moved/renamed the error
     from telethon.errors.rpcerrorlist import QueryIdInvalidError  # type: ignore[attr-defined]
-from telethon.tl.types import ReactionEmoji, User, InlineQueryResultArticle, InputTextMessageContent
+from telethon.tl.types import ReactionEmoji, User
 
 if TYPE_CHECKING:
     from telethon.tl.custom.inlinebuilder import InlineBuilder
@@ -5407,22 +5407,76 @@ async def on_cb(ev):
 
     if data == "show_accounts_menu":
         await answer_callback(ev)
-        # Показываем две inline-плашки сразу
-        results = [
-            InlineQueryResultArticle(
-                id="validate_all_accounts",
-                title="Валидация",
-                description="Проверить все аккаунты на валидность",
-                input_message_content=InputTextMessageContent("VALIDATE_ALL_ACCOUNTS"),
-            ),
-            InlineQueryResultArticle(
-                id="delete_account_menu",
-                title="Удалить аккаунт",
-                description="Удалить один из аккаунтов",
-                input_message_content=InputTextMessageContent("DELETE_ACCOUNT_MENU"),
-            ),
-        ]
-        await ev.answer(results)
+        # Показываем две inline кнопки сразу
+        await edit_or_send_message(
+            ev,
+            admin_id,
+            "",  # Пустой текст
+            buttons=[
+                [Button.inline("Валидация", b"validate_all_accounts")],
+                [Button.inline("Удалить аккаунт", b"delete_account_menu")],
+            ],
+        )
+        return
+
+    if data == "validate_all_accounts":
+        await answer_callback(ev)
+        result_text = await validate_all_accounts(admin_id)
+        await edit_or_send_message(ev, admin_id, result_text, buttons=main_menu())
+        return
+
+    if data == "delete_account_menu":
+        await answer_callback(ev)
+        accounts = get_accounts_meta(admin_id)
+        if not accounts:
+            await edit_or_send_message(ev, admin_id, "Аккаунтов нет.", buttons=main_menu())
+            return
+        # Показываем список аккаунтов как inline кнопки
+        buttons = []
+        for phone in accounts:
+            buttons.append([Button.inline(phone, f"del_account_{phone}".encode())])
+        buttons.append([Button.inline("← Назад", b"back")])
+        await edit_or_send_message(
+            ev,
+            admin_id,
+            "Выберите аккаунт для удаления:",
+            buttons=buttons
+        )
+        return
+
+    if data.startswith("del_account_"):
+        phone = data[len("del_account_"):]
+        worker = get_worker(admin_id, phone)
+        await answer_callback(ev)
+        if worker:
+            await worker.logout()
+            unregister_worker(admin_id, phone)
+        for ctx_key, ctx_val in list(reply_contexts.items()):
+            if ctx_val.get("phone") == phone and ctx_val.get("owner_id") == admin_id:
+                reply_contexts.pop(ctx_key, None)
+                for admin_key, waiting_ctx in list(reply_waiting.items()):
+                    if waiting_ctx.get("ctx") == ctx_key:
+                        reply_waiting.pop(admin_key, None)
+        threads = notification_threads.get(admin_id)
+        if threads:
+            prefix = f"{phone}:"
+            for thread_id in list(threads.keys()):
+                if thread_id.startswith(prefix):
+                    threads.pop(thread_id, None)
+            if not threads:
+                notification_threads.pop(admin_id, None)
+        accounts = get_accounts_meta(admin_id)
+        meta = accounts.pop(phone, None)
+        persist_tenants()
+        if meta and meta.get("session_file") and os.path.exists(meta["session_file"]):
+            with contextlib.suppress(OSError):
+                os.remove(meta["session_file"])
+        await edit_or_send_message(
+            ev,
+            admin_id,
+            f"🗑 Аккаунт {phone} удалён.",
+            buttons=main_menu(),
+        )
         return
 
     if data == "back":
@@ -6203,61 +6257,6 @@ async def on_text(ev):
         buttons, page, total_pages, _ = build_account_buttons(admin_id, "del_do")
         caption = format_page_caption("Выбери аккаунт для удаления", page, total_pages)
         await bot_client.send_message(admin_id, caption, buttons=buttons)
-        return
-    elif text == "VALIDATE_ALL_ACCOUNTS":
-        await ev.delete()  # Удаляем служебное сообщение
-        result_text = await validate_all_accounts(admin_id)
-        await bot_client.send_message(admin_id, result_text, buttons=main_menu())
-        return
-    elif text == "DELETE_ACCOUNT_MENU":
-        await ev.delete()  # Удаляем служебное сообщение
-        accounts = get_accounts_meta(admin_id)
-        if not accounts:
-            await bot_client.send_message(admin_id, "Аккаунтов нет.")
-            return
-        # Показываем список аккаунтов как inline-плашки
-        results = []
-        for phone in accounts:
-            results.append(
-                InlineQueryResultArticle(
-                    id=f"del_account_{phone}",
-                    title=phone,
-                    description="Удалить этот аккаунт",
-                    input_message_content=InputTextMessageContent(f"DEL_ACCOUNT_{phone}"),
-                )
-            )
-        # Показываем inline-плашки в текущем чате
-        await ev.answer(results)
-        return
-    elif text.startswith("DEL_ACCOUNT_"):
-        await ev.delete()  # Удаляем служебное сообщение
-        phone = text[len("DEL_ACCOUNT_"):]
-        worker = get_worker(admin_id, phone)
-        await answer_callback(ev)
-        if worker:
-            await worker.logout()
-            unregister_worker(admin_id, phone)
-        for ctx_key, ctx_val in list(reply_contexts.items()):
-            if ctx_val.get("phone") == phone and ctx_val.get("owner_id") == admin_id:
-                reply_contexts.pop(ctx_key, None)
-                for admin_key, waiting_ctx in list(reply_waiting.items()):
-                    if waiting_ctx.get("ctx") == ctx_key:
-                        reply_waiting.pop(admin_key, None)
-        threads = notification_threads.get(admin_id)
-        if threads:
-            prefix = f"{phone}:"
-            for thread_id in list(threads.keys()):
-                if thread_id.startswith(prefix):
-                    threads.pop(thread_id, None)
-            if not threads:
-                notification_threads.pop(admin_id, None)
-        accounts = get_accounts_meta(admin_id)
-        meta = accounts.pop(phone, None)
-        persist_tenants()
-        if meta and meta.get("session_file") and os.path.exists(meta["session_file"]):
-            with contextlib.suppress(OSError):
-                os.remove(meta["session_file"])
-        await bot_client.send_message(admin_id, f"🗑 Аккаунт {phone} удалён.", buttons=main_menu())
         return
 
     sentinel_index = text.find(INLINE_REPLY_SENTINEL)
