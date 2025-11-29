@@ -5411,7 +5411,7 @@ async def on_cb(ev):
         await edit_or_send_message(
             ev,
             admin_id,
-            "",  # Пустой текст
+            "Выберите действие:",  # Выберите действие
             buttons=[
                 [Button.inline("Валидация", b"validate_all_accounts")],
                 [Button.inline("Удалить аккаунт", b"delete_account_menu")],
