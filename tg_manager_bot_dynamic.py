@@ -34,7 +34,7 @@ try:  # Telethon <= 1.33.1
     from telethon.errors import QueryIdInvalidError  # type: ignore[attr-defined]
 except ImportError:  # Telethon >= 1.34 moved/renamed the error
     from telethon.errors.rpcerrorlist import QueryIdInvalidError  # type: ignore[attr-defined]
-from telethon.tl.types import ReactionEmoji, User, InlineQueryResultArticle, InputTextMessageContent, InlineKeyboardMarkup
+from telethon.tl.types import ReactionEmoji, User
 
 if TYPE_CHECKING:
     from telethon.tl.custom.inlinebuilder import InlineBuilder
@@ -1426,14 +1426,14 @@ def _build_files_main_menu() -> List[InlineArticle]:
             id="files_delete",
             title="🗑 Удалить",
             description="Удалить из библиотеки",
-            input_message_content=InputTextMessageContent("Открываю список для удаления..."),
-            reply_markup=InlineKeyboardMarkup([
+            text="Открываю список для удаления...",
+            buttons=[
                 [Button.switch_inline(
                     text="📂 Выбрать тип файлов",
                     query="files_del",
                     same_peer=True
                 )]
-            ]),
+            ],
         )
     )
 
@@ -4687,21 +4687,22 @@ async def on_inline_query(ev):
         inline_results = []
         for file_type, title, desc in file_types:
             inline_results.append(
-                InlineQueryResultArticle(
+                InlineArticle(
                     id=f"del_type_{file_type}",
                     title=title,
                     description=desc,
-                    input_message_content=InputTextMessageContent("Открываю список для удаления..."),
-                    reply_markup=InlineKeyboardMarkup([
+                    text="Открываю список для удаления...",
+                    buttons=[
                         [Button.switch_inline(
                             text="📋 Показать файлы",
                             query=f"del_{file_type}_list",
                             same_peer=True
                         )]
-                    ]),
+                    ],
                 )
             )
-        await ev.answer(inline_results, cache_time=0)
+        results = await _render_inline_articles(ev.builder, inline_results)
+        await ev.answer(results, cache_time=0)
         return
 
     # Показать список файлов для удаления конкретного типа
@@ -4714,11 +4715,11 @@ async def on_inline_query(ev):
             if not files:
                 label = FILE_TYPE_LABELS.get(file_type, file_type.title())
                 inline_results.append(
-                    InlineQueryResultArticle(
+                    InlineArticle(
                         id=f"del_{file_type}_empty",
                         title=f"❌ {label} отсутствуют",
                         description="Нет файлов для удаления",
-                        input_message_content=InputTextMessageContent("📭 В этой категории пока нет файлов"),
+                        text="📭 В этой категории пока нет файлов",
                     )
                 )
             else:
@@ -4728,15 +4729,16 @@ async def on_inline_query(ev):
                     display_name = os.path.splitext(file_name)[0]
 
                     inline_results.append(
-                        InlineQueryResultArticle(
+                        InlineArticle(
                             id=f"del_{file_type}_{idx}",
                             title=f"🗑 {display_name}",
                             description="Нажми для удаления",
-                            input_message_content=InputTextMessageContent(f"DEL_{file_type.upper()}_{idx}"),
+                            text=f"DEL_{file_type.upper()}_{idx}",
                         )
                     )
 
-            await ev.answer(inline_results, cache_time=0)
+            results = await _render_inline_articles(ev.builder, inline_results)
+            await ev.answer(results, cache_time=0)
             return
 
     # Запуск процесса добавления конкретного типа файла
