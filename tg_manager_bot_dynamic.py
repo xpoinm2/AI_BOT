@@ -24,6 +24,7 @@ from telethon import TelegramClient, events, Button, functions, helpers, types
 from OpenAi_helper import generate_dating_ai_variants, recommend_dating_ai_variant
 from telethon.utils import get_display_name
 from telethon.sessions import StringSession
+from telethon.tl.types import InputTextMessageContent, InlineQueryResultArticle
 from telethon.errors import (
     SessionPasswordNeededError,
     FloodWaitError,
@@ -4652,6 +4653,53 @@ async def on_inline_query(ev):
     raw_query = (ev.text or "").strip()
     normalized_query = " ".join(raw_query.replace("_", " ").split()).strip().lower()
 
+    # Обработка меню аккаунтов (ДОЛЖНА быть ДО проверки ключевых слов!)
+    if raw_query == "accounts_menu":
+        inline_results = [
+            InlineArticle(
+                id="validate_accounts",
+                title="✅ Валидация",
+                description="Проверить аккаунты на валидность",
+                input_message_content=types.InputTextMessageContent("START_VALIDATE_ACCOUNTS"),
+            ),
+            InlineArticle(
+                id="delete_account",
+                title="🗑 Удалить аккаунт",
+                description="Удалить один из аккаунтов",
+                input_message_content=types.InputTextMessageContent("START_DELETE_ACCOUNT"),
+            ),
+        ]
+        results = await _render_inline_articles(ev.builder, inline_results)
+        await ev.answer(results, cache_time=0)
+        return
+
+    # Обработка списка аккаунтов для удаления
+    if raw_query == "delete_account_list":
+        accounts = get_accounts_meta(user_id)
+        inline_results = []
+        if not accounts:
+            inline_results.append(
+                InlineArticle(
+                    id="no_accounts",
+                    title="❌ Нет аккаунтов",
+                    description="Сначала добавьте аккаунт",
+                    input_message_content=types.InputTextMessageContent("Аккаунтов нет."),
+                )
+            )
+        else:
+            for phone in accounts:
+                inline_results.append(
+                    InlineArticle(
+                        id=f"del_{phone}",
+                        title=f"🗑 {phone}",
+                        description="Нажмите для удаления",
+                        input_message_content=types.InputTextMessageContent(f"DEL_ACCOUNT_{phone}"),
+                    )
+                )
+        results = await _render_inline_articles(ev.builder, inline_results)
+        await ev.answer(results, cache_time=0)
+        return
+
     # Проверка на запросы добавления аккаунта (содержащие ключевые слова)
     account_keywords = {"add", "аккаунт", "account", "добавить"}
     if any(keyword in normalized_query for keyword in account_keywords):
@@ -4861,43 +4909,6 @@ async def on_inline_query(ev):
                     )
                     await ev.answer(results, cache_time=0)
                     return
-
-    # Обработка меню аккаунтов
-    if raw_query == "accounts_menu":
-        inline_results = [
-            InlineArticle(
-                id="validate_accounts",
-                title="Валидация",
-                description="Проверить аккаунты",
-                input_message_content=types.InputTextMessageContent("START_VALIDATE_ACCOUNTS"),
-            ),
-            InlineArticle(
-                id="delete_account",
-                title="Удалить аккаунт",
-                description="Удалить один аккаунт",
-                input_message_content=types.InputTextMessageContent("START_DELETE_ACCOUNT"),
-            ),
-        ]
-        results = await _render_inline_articles(ev.builder, inline_results)
-        await ev.answer(results, cache_time=0)
-        return
-
-    # Обработка списка аккаунтов для удаления
-    if raw_query == "delete_account_list":
-        accounts = get_accounts_meta(user_id)
-        inline_results = []
-        for phone in accounts:
-            inline_results.append(
-                InlineArticle(
-                    id=f"del_{phone}",
-                    title=phone,
-                    description="Нажмите для удаления",
-                    input_message_content=types.InputTextMessageContent(f"DEL_ACCOUNT_{phone}"),
-                )
-            )
-        results = await _render_inline_articles(ev.builder, inline_results)
-        await ev.answer(results, cache_time=0)
-        return
 
     parts = raw_query.split()
     # Сносим префикс library / files / file / lib
