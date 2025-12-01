@@ -3705,6 +3705,7 @@ class PendingAIReply:
     chosen_index: int = -1
     recommended_index: Optional[int] = None
     recommendation_text: Optional[str] = None
+    reply_to_source: bool = True
 
 
 pending_ai_replies: Dict[str, PendingAIReply] = {}
@@ -3756,6 +3757,18 @@ def _format_ai_variants_for_admin(task_id: str, pr: PendingAIReply):
         "Выбери один из вариантов кнопками ниже.\n"
         "После выбора можно будет при необходимости отредактировать текст перед отправкой."
     )
+    mode_line = (
+        "📩 Текущий режим отправки: ответ с реплаем на сообщение собеседника."
+        if pr.reply_to_source
+        else "📩 Текущий режим отправки: обычное сообщение без реплая."
+    )
+    lines.extend(
+        [
+            "",
+            mode_line,
+            "Нажми кнопку «Режим отправки» ниже, чтобы переключить поведение.",
+        ]
+    )
     text = "\n".join(lines).strip()
 
     digit_emoji = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
@@ -3766,6 +3779,12 @@ def _format_ai_variants_for_admin(task_id: str, pr: PendingAIReply):
             [Button.inline(f"{emoji} Вариант {idx+1}", f"ai_pick:{task_id}:{idx}")]
         )
 
+    mode_label = (
+        "🔁 Режим отправки: с реплаем"
+        if pr.reply_to_source
+        else "🔁 Режим отправки: без реплая"
+    )
+    buttons.append([Button.inline(mode_label, f"ai_toggle_reply:{task_id}")])
     buttons.append([Button.inline("❌ Отменить", f"ai_cancel:{task_id}")])
     return text, buttons
 
@@ -3822,15 +3841,35 @@ def _format_ai_chosen_for_admin(task_id: str, pr: PendingAIReply):
     else:
         lines.append("🤖 Вариант не выбран.")
 
+    mode_line = (
+        "📩 Текущий режим отправки: ответ с реплаем на сообщение собеседника."
+        if pr.reply_to_source
+        else "📩 Текущий режим отправки: обычное сообщение без реплая."
+    )
+    lines.extend(
+        [
+            "",
+            mode_line,
+            "Используй кнопку «Режим отправки» ниже, чтобы переключить поведение.",
+        ]
+    )
+
     text = "\n".join(lines).strip()
 
+    mode_label = (
+        "🔁 Режим отправки: с реплаем"
+        if pr.reply_to_source
+        else "🔁 Режим отправки: без реплая"
+    )
+
     buttons: List[List[Button]] = [
-        [Button.inline("✅ Отправить как есть", f"ai_send:{task_id}")],
-        [Button.inline("✏️ Изменить текст", f"ai_edit:{task_id}")],
+        [Button.inline("📤 Отправить", f"ai_send_final:{task_id}")],
+        [Button.inline("✏️ Изменить текст", f"ai_edit_final:{task_id}")],
         [
             Button.inline("🔁 Выбрать другой", f"ai_repick:{task_id}"),
             Button.inline("❌ Отменить", f"ai_cancel:{task_id}"),
         ],
+        [Button.inline(mode_label, f"ai_toggle_reply:{task_id}")],
     ]
     return text, buttons
 
@@ -5106,35 +5145,41 @@ async def on_cb(ev):
         # Отвечаем на callback сразу
         await answer_callback(ev)
 
-        # Создаем новое сообщение с выбранным вариантом и кнопками действий
-        chosen_text = pr.suggested_variants[idx]
-        text_for_admin = f"""🧠 Новое входящее сообщение
-Аккаунт: {pr.phone}
-Чат ID: {pr.peer_id}
+        text_for_admin, buttons = _format_ai_chosen_for_admin(task_id, pr)
 
-💬 Сообщение пользователя:
-{pr.incoming_text}
-
-✅ Выбран вариант:
-{chosen_text}
-
-Выберите действие:"""
-
-        buttons = [
-            [Button.inline("📤 Отправить", f"ai_send_final:{task_id}")],
-            [Button.inline("✏️ Исправить", f"ai_edit_final:{task_id}")],
-        ]
-
-        # Удаляем старое сообщение и создаем новое
         try:
-            await ev.delete()
-            await bot_client.send_message(
-                admin_id,
-                text_for_admin,
-                buttons=buttons
-            )
+            await ev.edit(text_for_admin, buttons=buttons)
         except Exception as e:
             log.debug("Не удалось обновить AI-подсказку: %s", e)
+        return
+
+    if data.startswith("ai_toggle_reply:"):
+        try:
+            _, task_id = data.split(":", 1)
+        except ValueError:
+            await answer_callback(ev, "Некорректные данные кнопки", alert=True)
+            return
+
+        pr = pending_ai_replies.get(task_id)
+        if not pr:
+            await answer_callback(ev, "Заявка уже обработана или устарела", alert=True)
+            return
+
+        pr.reply_to_source = not pr.reply_to_source
+
+        if pr.chosen_index >= 0:
+            text_for_admin, buttons = _format_ai_chosen_for_admin(task_id, pr)
+        else:
+            text_for_admin, buttons = _format_ai_variants_for_admin(task_id, pr)
+
+        try:
+            await ev.edit(text_for_admin, buttons=buttons)
+        except Exception as e:
+            log.debug("Не удалось переключить режим отправки: %s", e)
+            await answer_callback(ev, "Сообщение устарело", alert=True)
+            return
+
+        await answer_callback(ev)
         return
 
     if data.startswith("ai_repick:"):
@@ -5189,11 +5234,12 @@ async def on_cb(ev):
             text_to_send = variants[idx]
 
             try:
+                reply_to_id = pr.msg_id if pr.reply_to_source else None
                 await worker.send_outgoing(
                     chat_id=pr.peer_id,
                     message=text_to_send,
                     peer=None,
-                    reply_to_msg_id=pr.msg_id,
+                    reply_to_msg_id=reply_to_id,
                     mark_read_msg_id=pr.msg_id,
                 )
             except Exception as e:
@@ -5255,11 +5301,12 @@ async def on_cb(ev):
             text_to_send = variants[idx]
 
             try:
+                reply_to_id = pr.msg_id if pr.reply_to_source else None
                 await worker.send_outgoing(
                     chat_id=pr.peer_id,
                     message=text_to_send,
                     peer=None,
-                    reply_to_msg_id=pr.msg_id,
+                    reply_to_msg_id=reply_to_id,
                     mark_read_msg_id=pr.msg_id,
                 )
             except Exception as e:
@@ -5291,7 +5338,6 @@ async def on_cb(ev):
                 f"✏️ Отправь исправленный текст ответа одним сообщением.\n\n"
                 f"Оригинальный текст для копирования:\n{original_text}\n\n"
                 f"После отправки исправленного сообщения, оно будет отправлено пользователю.",
-                reply_markup={"force_reply": True}
             )
             return
 
@@ -6566,11 +6612,12 @@ async def on_text(ev):
             return
 
         try:
+            reply_to_id = pr.msg_id if pr.reply_to_source else None
             await worker.send_outgoing(
                 chat_id=pr.peer_id,
                 message=text,
                 peer=None,
-                reply_to_msg_id=pr.msg_id,
+                reply_to_msg_id=reply_to_id,
                 mark_read_msg_id=pr.msg_id,
             )
         except Exception as e:
