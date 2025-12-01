@@ -5094,13 +5094,37 @@ async def on_cb(ev):
             return
 
         pr.chosen_index = idx
-        text_for_admin, buttons = _format_ai_chosen_for_admin(task_id, pr)
+
+        # Создаем новое сообщение с выбранным вариантом и кнопками действий
+        chosen_text = pr.suggested_variants[idx]
+        text_for_admin = f"""🧠 Новое входящее сообщение
+Аккаунт: {pr.phone}
+Чат ID: {pr.peer_id}
+
+💬 Сообщение пользователя:
+{pr.incoming_text}
+
+✅ Выбран вариант:
+{chosen_text}
+
+Выберите действие:"""
+
+        buttons = [
+            [Button.inline("📤 Отправить", f"ai_send_final:{task_id}")],
+            [Button.inline("✏️ Исправить", f"ai_edit_final:{task_id}")],
+        ]
+
+        # Удаляем старое сообщение и создаем новое
         try:
-            await ev.edit(text_for_admin, buttons=buttons)
+            await ev.delete()
+            await bot_client.send_message(
+                admin_id,
+                text_for_admin,
+                buttons=buttons
+            )
         except Exception as e:
             log.debug("Не удалось обновить AI-подсказку: %s", e)
-            await answer_callback(ev, "Сообщение устарело", alert=True)
-            return
+            await answer_callback(ev, "Ошибка обновления", alert=True)
 
         await answer_callback(ev)
         return
@@ -5192,6 +5216,74 @@ async def on_cb(ev):
                 admin_id,
                 "✏️ Отправь новый текст ответа одним сообщением.\n"
                 "После этого он сразу будет отправлен пользователю.",
+            )
+            return
+
+    if data.startswith(("ai_send_final:", "ai_edit_final:")):
+        try:
+            action, task_id = data.split(":", 1)
+        except ValueError:
+            await answer_callback(ev, "Некорректные данные кнопки", alert=True)
+            return
+
+        pr = pending_ai_replies.get(task_id)
+        if not pr:
+            await answer_callback(ev, "Заявка уже обработана или устарела", alert=True)
+            return
+
+        if action == "ai_send_final":
+            # Отправляем выбранный вариант собеседнику
+            worker = get_worker(pr.owner_id, pr.phone)
+            if not worker:
+                await answer_callback(ev, "Аккаунт недоступен", alert=True)
+                return
+
+            variants = pr.suggested_variants or []
+            idx = pr.chosen_index
+            if not variants or idx < 0 or idx >= len(variants):
+                await answer_callback(ev, "Вариант недоступен", alert=True)
+                return
+
+            text_to_send = variants[idx]
+
+            try:
+                await worker.send_outgoing(
+                    chat_id=pr.peer_id,
+                    message=text_to_send,
+                    peer=None,
+                    reply_to_msg_id=pr.msg_id,
+                    mark_read_msg_id=pr.msg_id,
+                )
+            except Exception as e:
+                await answer_callback(ev, f"Ошибка отправки: {e}", alert=True)
+                return
+
+            pending_ai_replies.pop(task_id, None)
+            try:
+                await ev.edit(f"✅ Ответ отправлен:\n\n{text_to_send}", buttons=None)
+            except Exception:
+                pass
+            await answer_callback(ev)
+            return
+
+        if action == "ai_edit_final":
+            # Запрашиваем исправление текста
+            editing_ai_reply[admin_id] = task_id
+            await answer_callback(ev)
+
+            variants = pr.suggested_variants or []
+            idx = pr.chosen_index
+            if variants and idx >= 0 and idx < len(variants):
+                original_text = variants[idx]
+            else:
+                original_text = ""
+
+            await bot_client.send_message(
+                admin_id,
+                f"✏️ Отправь исправленный текст ответа одним сообщением.\n\n"
+                f"Оригинальный текст для копирования:\n{original_text}\n\n"
+                f"После отправки исправленного сообщения, оно будет отправлено пользователю.",
+                reply_markup={"force_reply": True}
             )
             return
 
