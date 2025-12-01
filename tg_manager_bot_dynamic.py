@@ -5095,6 +5095,9 @@ async def on_cb(ev):
 
         pr.chosen_index = idx
 
+        # Отвечаем на callback сразу
+        await answer_callback(ev)
+
         # Создаем новое сообщение с выбранным вариантом и кнопками действий
         chosen_text = pr.suggested_variants[idx]
         text_for_admin = f"""🧠 Новое входящее сообщение
@@ -5124,9 +5127,6 @@ async def on_cb(ev):
             )
         except Exception as e:
             log.debug("Не удалось обновить AI-подсказку: %s", e)
-            await answer_callback(ev, "Ошибка обновления", alert=True)
-
-        await answer_callback(ev)
         return
 
     if data.startswith("ai_repick:"):
