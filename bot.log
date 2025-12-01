@@ -3863,3 +3863,251 @@ AttributeError: module 'telethon.types' has no attribute 'InputTextMessageConten
 2025-11-29 23:51:52,555 [WARNING] asyncio: Executing <Task pending name='Task-1' coro=<startup() running at C:\Users\user\Desktop\AI_BOT\tg_manager_bot_dynamic.py:7119> wait_for=<Future pending cb=[Task.task_wakeup()] created at C:\Users\user\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:459> cb=[_run_until_complete_cb() at C:\Users\user\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:181] created at C:\Users\user\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:732> took 0.117 seconds
 2025-11-29 23:51:53,360 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
 2025-11-29 23:51:54,312 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-29 23:56:57,066 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-29 23:56:59,434 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-11-29 23:57:01,277 [INFO] mgrbot: Bot started. Restore workers...
+2025-11-29 23:57:01,283 [INFO] telethon.network.mtprotosender: Connecting to 149.154.175.51:443/_ThreadedPySocks...
+2025-11-29 23:57:01,590 [INFO] telethon.network.mtprotosender: Connection to 149.154.175.51:443/_ThreadedPySocks complete!
+2025-11-29 23:57:03,740 [INFO] mgrbot: [+57 321 838 0486] started on None; device=Honor 90
+2025-11-29 23:57:03,745 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-29 23:57:04,466 [WARNING] telethon.network.mtprotosender: Attempt 1 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-11-29 23:57:06,395 [WARNING] telethon.network.mtprotosender: Attempt 2 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-11-29 23:57:08,341 [WARNING] telethon.network.mtprotosender: Attempt 3 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-11-29 23:57:10,185 [WARNING] telethon.network.mtprotosender: Attempt 4 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-11-29 23:57:12,002 [WARNING] telethon.network.mtprotosender: Attempt 5 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-11-29 23:57:13,730 [WARNING] telethon.network.mtprotosender: Attempt 6 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-11-29 23:57:14,733 [WARNING] mgrbot: Worker +79240290221 not started yet: Connection to Telegram failed 5 time(s)
+2025-11-29 23:57:14,739 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-29 23:57:15,093 [WARNING] asyncio: Executing <Task pending name='Task-1' coro=<startup() running at C:\Users\user\Desktop\AI_BOT\tg_manager_bot_dynamic.py:7119> wait_for=<Future pending cb=[Task.task_wakeup()] created at C:\Users\user\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:459> cb=[_run_until_complete_cb() at C:\Users\user\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:181] created at C:\Users\user\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:732> took 0.131 seconds
+2025-11-29 23:57:15,918 [WARNING] asyncio: Executing <Task pending name='Task-1' coro=<startup() running at C:\Users\user\Desktop\AI_BOT\tg_manager_bot_dynamic.py:7119> wait_for=<Future pending cb=[Task.task_wakeup()] created at C:\Users\user\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:459> cb=[_run_until_complete_cb() at C:\Users\user\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:181] created at C:\Users\user\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:732> took 0.115 seconds
+2025-11-29 23:57:16,433 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-11-29 23:57:17,048 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-29 23:57:17,867 [WARNING] telethon.network.mtprotosender: Attempt 1 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-11-29 23:57:19,609 [WARNING] telethon.network.mtprotosender: Attempt 2 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-11-29 23:57:21,553 [WARNING] telethon.network.mtprotosender: Attempt 3 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-11-29 23:57:23,413 [WARNING] telethon.network.mtprotosender: Attempt 4 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-11-29 23:57:23,454 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-29 23:57:23,615 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-11-29 23:57:24,714 [INFO] mgrbot: [+79882124542] started on None; device=iPhone 12
+2025-11-29 23:57:25,062 [WARNING] telethon.network.mtprotosender: Attempt 5 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-11-29 23:57:26,994 [WARNING] telethon.network.mtprotosender: Attempt 6 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-11-29 23:57:28,008 [WARNING] mgrbot: Worker +7 924 029 0151 not started yet: Connection to Telegram failed 5 time(s)
+2025-11-29 23:57:28,022 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-29 23:57:29,246 [WARNING] asyncio: Executing <Task pending name='Task-1' coro=<startup() running at C:\Users\user\Desktop\AI_BOT\tg_manager_bot_dynamic.py:7119> wait_for=<Future pending cb=[Task.task_wakeup()] created at C:\Users\user\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:459> cb=[_run_until_complete_cb() at C:\Users\user\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:181] created at C:\Users\user\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:732> took 0.115 seconds
+2025-11-29 23:57:30,360 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-11-29 23:57:31,090 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-29 23:57:31,932 [WARNING] asyncio: Executing <Task pending name='Task-1' coro=<startup() running at C:\Users\user\Desktop\AI_BOT\tg_manager_bot_dynamic.py:7119> wait_for=<Future pending cb=[Task.task_wakeup()] created at C:\Users\user\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:459> cb=[_run_until_complete_cb() at C:\Users\user\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:181] created at C:\Users\user\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:732> took 0.447 seconds
+2025-11-29 23:57:32,759 [WARNING] asyncio: Executing <Task pending name='Task-1' coro=<startup() running at C:\Users\user\Desktop\AI_BOT\tg_manager_bot_dynamic.py:7119> wait_for=<Future pending cb=[Task.task_wakeup()] created at C:\Users\user\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:459> cb=[_run_until_complete_cb() at C:\Users\user\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:181] created at C:\Users\user\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:732> took 0.117 seconds
+2025-11-29 23:57:33,226 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-11-29 23:57:33,951 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-11-29 23:57:43,956 [WARNING] telethon.network.mtprotosender: Attempt 1 at connecting failed: TimeoutError: 
+2025-11-29 23:57:54,991 [WARNING] telethon.network.mtprotosender: Attempt 2 at connecting failed: TimeoutError: 
+2025-11-29 23:58:06,017 [WARNING] telethon.network.mtprotosender: Attempt 3 at connecting failed: TimeoutError: 
+2025-12-01 17:33:17,884 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:33:19,226 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:33:19,634 [INFO] telethon.client.users: Phone migrated to 1
+2025-12-01 17:33:19,634 [INFO] telethon.client.telegrambaseclient: Reconnecting to new data center 1
+2025-12-01 17:33:19,693 [INFO] telethon.network.mtprotosender: Disconnecting from 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:33:19,695 [INFO] telethon.network.mtprotosender: Disconnection from 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:33:19,696 [INFO] telethon.network.mtprotosender: Connecting to 149.154.175.56:443/_ThreadedPySocks...
+2025-12-01 17:33:22,511 [INFO] telethon.network.mtprotosender: Connection to 149.154.175.56:443/_ThreadedPySocks complete!
+2025-12-01 17:33:23,847 [INFO] mgrbot: Bot started. Restore workers...
+2025-12-01 17:33:23,849 [INFO] telethon.network.mtprotosender: Connecting to 149.154.175.51:443/_ThreadedPySocks...
+2025-12-01 17:33:24,006 [INFO] telethon.network.mtprotosender: Connection to 149.154.175.51:443/_ThreadedPySocks complete!
+2025-12-01 17:33:25,193 [INFO] mgrbot: [+57 321 838 0486] started on None; device=Honor 90
+2025-12-01 17:33:25,194 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:33:25,559 [WARNING] telethon.network.mtprotosender: Attempt 1 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:33:26,932 [WARNING] telethon.network.mtprotosender: Attempt 2 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:33:28,304 [WARNING] telethon.network.mtprotosender: Attempt 3 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:33:29,683 [WARNING] telethon.network.mtprotosender: Attempt 4 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:33:31,060 [WARNING] telethon.network.mtprotosender: Attempt 5 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:33:32,431 [WARNING] telethon.network.mtprotosender: Attempt 6 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:33:33,443 [WARNING] mgrbot: Worker +79240290221 not started yet: Connection to Telegram failed 5 time(s)
+2025-12-01 17:33:33,445 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:33:34,804 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:33:35,089 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:33:35,457 [WARNING] telethon.network.mtprotosender: Attempt 1 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:33:36,827 [WARNING] telethon.network.mtprotosender: Attempt 2 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:33:38,209 [WARNING] telethon.network.mtprotosender: Attempt 3 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:33:39,600 [WARNING] telethon.network.mtprotosender: Attempt 4 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:33:40,971 [WARNING] telethon.network.mtprotosender: Attempt 5 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:33:42,352 [WARNING] telethon.network.mtprotosender: Attempt 6 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:33:43,368 [WARNING] mgrbot: Worker +7 924 029 0151 not started yet: Connection to Telegram failed 5 time(s)
+2025-12-01 17:33:43,370 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:33:44,593 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:33:44,817 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:33:45,051 [WARNING] asyncio: Executing <Task pending name='Task-1' coro=<startup() running at C:\Users\User\Desktop\Работа\Боты\AI_BOT\tg_manager_bot_dynamic.py:7119> wait_for=<Future pending cb=[Task.task_wakeup()] created at C:\Users\User\python.3.13.0\tools\Lib\asyncio\base_events.py:460> cb=[_run_until_complete_cb() at C:\Users\User\python.3.13.0\tools\Lib\asyncio\base_events.py:182] created at C:\Users\User\python.3.13.0\tools\Lib\asyncio\tasks.py:748> took 0.141 seconds
+2025-12-01 17:33:46,277 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:33:46,564 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:33:56,570 [WARNING] telethon.network.mtprotosender: Attempt 1 at connecting failed: TimeoutError: 
+2025-12-01 17:34:07,593 [WARNING] telethon.network.mtprotosender: Attempt 2 at connecting failed: TimeoutError: 
+2025-12-01 17:34:18,613 [WARNING] telethon.network.mtprotosender: Attempt 3 at connecting failed: TimeoutError: 
+2025-12-01 17:34:29,631 [WARNING] telethon.network.mtprotosender: Attempt 4 at connecting failed: TimeoutError: 
+2025-12-01 17:34:40,651 [WARNING] telethon.network.mtprotosender: Attempt 5 at connecting failed: TimeoutError: 
+2025-12-01 17:34:51,678 [WARNING] telethon.network.mtprotosender: Attempt 6 at connecting failed: TimeoutError: 
+2025-12-01 17:34:52,682 [WARNING] mgrbot: Worker +79250262265 not started yet: Connection to Telegram failed 5 time(s)
+2025-12-01 17:34:52,684 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:35:02,695 [WARNING] telethon.network.mtprotosender: Attempt 1 at connecting failed: TimeoutError: 
+2025-12-01 17:35:13,709 [WARNING] telethon.network.mtprotosender: Attempt 2 at connecting failed: TimeoutError: 
+2025-12-01 17:35:15,275 [WARNING] telethon.network.mtprotosender: Attempt 3 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:35:16,927 [WARNING] telethon.network.mtprotosender: Attempt 4 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:35:18,503 [WARNING] telethon.network.mtprotosender: Attempt 5 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:35:20,089 [WARNING] telethon.network.mtprotosender: Attempt 6 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:35:21,103 [WARNING] mgrbot: Worker +79293416273 not started yet: Connection to Telegram failed 5 time(s)
+2025-12-01 17:35:21,105 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:35:22,616 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:35:22,944 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:35:24,928 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:35:25,155 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:35:26,950 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:35:27,169 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:35:29,209 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:35:29,440 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:35:30,917 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:35:31,144 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:35:32,649 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:35:32,987 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:35:34,220 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:35:34,452 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:35:35,920 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:35:36,137 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:35:37,288 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:35:37,569 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:35:38,748 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:35:38,984 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:35:39,186 [WARNING] asyncio: Executing <Task pending name='Task-1' coro=<startup() running at C:\Users\User\Desktop\Работа\Боты\AI_BOT\tg_manager_bot_dynamic.py:7119> wait_for=<Future pending cb=[Task.task_wakeup()] created at C:\Users\User\python.3.13.0\tools\Lib\asyncio\base_events.py:460> cb=[_run_until_complete_cb() at C:\Users\User\python.3.13.0\tools\Lib\asyncio\base_events.py:182] created at C:\Users\User\python.3.13.0\tools\Lib\asyncio\tasks.py:748> took 0.108 seconds
+2025-12-01 17:35:40,284 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:35:40,513 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:35:50,515 [WARNING] telethon.network.mtprotosender: Attempt 1 at connecting failed: TimeoutError: 
+2025-12-01 17:36:01,537 [WARNING] telethon.network.mtprotosender: Attempt 2 at connecting failed: TimeoutError: 
+2025-12-01 17:36:12,554 [WARNING] telethon.network.mtprotosender: Attempt 3 at connecting failed: TimeoutError: 
+2025-12-01 17:36:23,569 [WARNING] telethon.network.mtprotosender: Attempt 4 at connecting failed: TimeoutError: 
+2025-12-01 17:36:34,592 [WARNING] telethon.network.mtprotosender: Attempt 5 at connecting failed: TimeoutError: 
+2025-12-01 17:36:45,609 [WARNING] telethon.network.mtprotosender: Attempt 6 at connecting failed: TimeoutError: 
+2025-12-01 17:36:46,624 [WARNING] mgrbot: Worker +7 919 347 5570 not started yet: Connection to Telegram failed 5 time(s)
+2025-12-01 17:36:46,625 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:36:56,637 [WARNING] telethon.network.mtprotosender: Attempt 1 at connecting failed: TimeoutError: 
+2025-12-01 17:37:07,666 [WARNING] telethon.network.mtprotosender: Attempt 2 at connecting failed: TimeoutError: 
+2025-12-01 17:37:18,691 [WARNING] telethon.network.mtprotosender: Attempt 3 at connecting failed: TimeoutError: 
+2025-12-01 17:37:29,717 [WARNING] telethon.network.mtprotosender: Attempt 4 at connecting failed: TimeoutError: 
+2025-12-01 17:37:40,724 [WARNING] telethon.network.mtprotosender: Attempt 5 at connecting failed: TimeoutError: 
+2025-12-01 17:37:51,734 [WARNING] telethon.network.mtprotosender: Attempt 6 at connecting failed: TimeoutError: 
+2025-12-01 17:37:52,736 [WARNING] mgrbot: Worker +79193475570 not started yet: Connection to Telegram failed 5 time(s)
+2025-12-01 17:37:52,738 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:37:54,259 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:37:54,642 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:37:54,692 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:37:55,215 [INFO] mgrbot: [+79882124542] started on None; device=iPhone 12
+2025-12-01 17:37:55,216 [INFO] mgrbot: Startup notification suppressed to avoid spamming users.
+2025-12-01 17:45:05,321 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:45:06,786 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:45:07,145 [INFO] telethon.client.users: Phone migrated to 1
+2025-12-01 17:45:07,145 [INFO] telethon.client.telegrambaseclient: Reconnecting to new data center 1
+2025-12-01 17:45:07,256 [INFO] telethon.network.mtprotosender: Disconnecting from 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:45:07,258 [INFO] telethon.network.mtprotosender: Disconnection from 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:45:07,259 [INFO] telethon.network.mtprotosender: Connecting to 149.154.175.56:443/_ThreadedPySocks...
+2025-12-01 17:45:08,839 [INFO] telethon.network.mtprotosender: Connection to 149.154.175.56:443/_ThreadedPySocks complete!
+2025-12-01 17:45:10,141 [INFO] mgrbot: Bot started. Restore workers...
+2025-12-01 17:45:10,143 [INFO] telethon.network.mtprotosender: Connecting to 149.154.175.51:443/_ThreadedPySocks...
+2025-12-01 17:45:10,304 [INFO] telethon.network.mtprotosender: Connection to 149.154.175.51:443/_ThreadedPySocks complete!
+2025-12-01 17:45:11,676 [INFO] mgrbot: [+57 321 838 0486] started on None; device=Honor 90
+2025-12-01 17:45:11,678 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:45:12,049 [WARNING] telethon.network.mtprotosender: Attempt 1 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:45:13,425 [WARNING] telethon.network.mtprotosender: Attempt 2 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:45:14,818 [WARNING] telethon.network.mtprotosender: Attempt 3 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:45:16,196 [WARNING] telethon.network.mtprotosender: Attempt 4 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:45:17,580 [WARNING] telethon.network.mtprotosender: Attempt 5 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:45:18,953 [WARNING] telethon.network.mtprotosender: Attempt 6 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:45:19,962 [WARNING] mgrbot: Worker +79240290221 not started yet: Connection to Telegram failed 5 time(s)
+2025-12-01 17:45:19,963 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:45:20,191 [WARNING] asyncio: Executing <Task pending name='Task-1' coro=<startup() running at C:\Users\User\Desktop\Работа\Боты\AI_BOT\tg_manager_bot_dynamic.py:7119> wait_for=<Future pending cb=[Task.task_wakeup()] created at C:\Users\User\python.3.13.0\tools\Lib\asyncio\base_events.py:460> cb=[_run_until_complete_cb() at C:\Users\User\python.3.13.0\tools\Lib\asyncio\base_events.py:182] created at C:\Users\User\python.3.13.0\tools\Lib\asyncio\tasks.py:748> took 0.135 seconds
+2025-12-01 17:45:21,185 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:45:21,419 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:45:21,787 [WARNING] telethon.network.mtprotosender: Attempt 1 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:45:23,165 [WARNING] telethon.network.mtprotosender: Attempt 2 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:45:24,563 [WARNING] telethon.network.mtprotosender: Attempt 3 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:45:25,930 [WARNING] telethon.network.mtprotosender: Attempt 4 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:45:27,300 [WARNING] telethon.network.mtprotosender: Attempt 5 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:45:27,484 [WARNING] asyncio: Executing <Task pending name='Task-1' coro=<startup() running at C:\Users\User\Desktop\Работа\Боты\AI_BOT\tg_manager_bot_dynamic.py:7119> wait_for=<Future pending cb=[Task.task_wakeup()] created at C:\Users\User\python.3.13.0\tools\Lib\asyncio\base_events.py:460> cb=[_run_until_complete_cb() at C:\Users\User\python.3.13.0\tools\Lib\asyncio\base_events.py:182] created at C:\Users\User\python.3.13.0\tools\Lib\asyncio\tasks.py:748> took 0.184 seconds
+2025-12-01 17:45:28,861 [WARNING] telethon.network.mtprotosender: Attempt 6 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:45:29,872 [WARNING] mgrbot: Worker +7 924 029 0151 not started yet: Connection to Telegram failed 5 time(s)
+2025-12-01 17:45:29,874 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:45:31,031 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:45:31,301 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:45:32,873 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:45:33,125 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:45:43,126 [WARNING] telethon.network.mtprotosender: Attempt 1 at connecting failed: TimeoutError: 
+2025-12-01 17:45:54,151 [WARNING] telethon.network.mtprotosender: Attempt 2 at connecting failed: TimeoutError: 
+2025-12-01 17:45:56,047 [INFO] OpenAi_helper: Генерация AI-ответов для входящего сообщения: Соси
+2025-12-01 17:45:56,282 [INFO] OpenAi_helper: Создан новый AsyncOpenAI клиент.
+2025-12-01 17:45:56,570 [WARNING] asyncio: Executing <Task pending name='Task-43' coro=<UpdateMethods._dispatch_update() running at C:\Users\User\python.3.13.0\tools\Lib\site-packages\telethon\client\updates.py:574> wait_for=<Future pending cb=[_chain_future.<locals>._call_check_cancel() at C:\Users\User\python.3.13.0\tools\Lib\asyncio\futures.py:386, Task.task_wakeup()] created at C:\Users\User\python.3.13.0\tools\Lib\asyncio\base_events.py:460> cb=[set.discard()] created at C:\Users\User\python.3.13.0\tools\Lib\site-packages\telethon\client\updates.py:280> took 0.522 seconds
+2025-12-01 17:45:58,481 [INFO] httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-12-01 17:45:59,877 [INFO] httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-12-01 17:46:01,682 [INFO] httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-12-01 17:46:02,376 [INFO] httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-12-01 17:46:04,944 [INFO] httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-12-01 17:46:05,162 [WARNING] telethon.network.mtprotosender: Attempt 3 at connecting failed: TimeoutError: 
+2025-12-01 17:46:16,172 [WARNING] telethon.network.mtprotosender: Attempt 4 at connecting failed: TimeoutError: 
+2025-12-01 17:46:27,196 [WARNING] telethon.network.mtprotosender: Attempt 5 at connecting failed: TimeoutError: 
+2025-12-01 17:46:38,205 [WARNING] telethon.network.mtprotosender: Attempt 6 at connecting failed: TimeoutError: 
+2025-12-01 17:46:39,210 [WARNING] mgrbot: Worker +79250262265 not started yet: Connection to Telegram failed 5 time(s)
+2025-12-01 17:46:39,211 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:46:49,214 [WARNING] telethon.network.mtprotosender: Attempt 1 at connecting failed: TimeoutError: 
+2025-12-01 17:47:00,238 [WARNING] telethon.network.mtprotosender: Attempt 2 at connecting failed: TimeoutError: 
+2025-12-01 17:47:11,252 [WARNING] telethon.network.mtprotosender: Attempt 3 at connecting failed: TimeoutError: 
+2025-12-01 17:47:12,819 [WARNING] telethon.network.mtprotosender: Attempt 4 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:47:14,380 [WARNING] telethon.network.mtprotosender: Attempt 5 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:47:15,950 [WARNING] telethon.network.mtprotosender: Attempt 6 at connecting failed: GeneralProxyError: Socket error: 0x02: Connection not allowed by ruleset
+2025-12-01 17:47:16,965 [WARNING] mgrbot: Worker +79293416273 not started yet: Connection to Telegram failed 5 time(s)
+2025-12-01 17:47:16,966 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:47:19,010 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:47:19,232 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:47:21,033 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:47:21,486 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:47:22,797 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:47:23,024 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:47:24,011 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:47:24,262 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:47:25,610 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:47:26,588 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:47:27,933 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:47:28,204 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:47:29,775 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:47:30,086 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:47:30,330 [WARNING] asyncio: Executing <Task pending name='Task-1' coro=<startup() running at C:\Users\User\Desktop\Работа\Боты\AI_BOT\tg_manager_bot_dynamic.py:7119> wait_for=<Future pending cb=[Task.task_wakeup()] created at C:\Users\User\python.3.13.0\tools\Lib\asyncio\base_events.py:460> cb=[_run_until_complete_cb() at C:\Users\User\python.3.13.0\tools\Lib\asyncio\base_events.py:182] created at C:\Users\User\python.3.13.0\tools\Lib\asyncio\tasks.py:748> took 0.146 seconds
+2025-12-01 17:47:32,294 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:47:32,528 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:47:35,070 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:47:35,296 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:47:37,609 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:47:37,842 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:47:39,217 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:47:39,451 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:47:49,466 [WARNING] telethon.network.mtprotosender: Attempt 1 at connecting failed: TimeoutError: 
+2025-12-01 17:48:00,483 [WARNING] telethon.network.mtprotosender: Attempt 2 at connecting failed: TimeoutError: 
+2025-12-01 17:48:11,497 [WARNING] telethon.network.mtprotosender: Attempt 3 at connecting failed: TimeoutError: 
+2025-12-01 17:48:22,515 [WARNING] telethon.network.mtprotosender: Attempt 4 at connecting failed: TimeoutError: 
+2025-12-01 17:48:33,526 [WARNING] telethon.network.mtprotosender: Attempt 5 at connecting failed: TimeoutError: 
+2025-12-01 17:48:44,552 [WARNING] telethon.network.mtprotosender: Attempt 6 at connecting failed: TimeoutError: 
+2025-12-01 17:48:45,557 [WARNING] mgrbot: Worker +7 919 347 5570 not started yet: Connection to Telegram failed 5 time(s)
+2025-12-01 17:48:45,559 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:48:55,562 [WARNING] telethon.network.mtprotosender: Attempt 1 at connecting failed: TimeoutError: 
+2025-12-01 17:49:04,193 [INFO] OpenAi_helper: Генерация AI-ответов для входящего сообщения: Покажи сиськи
+2025-12-01 17:49:06,444 [INFO] httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-12-01 17:49:06,578 [WARNING] telethon.network.mtprotosender: Attempt 2 at connecting failed: TimeoutError: 
+2025-12-01 17:49:07,840 [INFO] httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-12-01 17:49:09,690 [INFO] httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-12-01 17:49:11,289 [INFO] httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-12-01 17:49:13,084 [INFO] httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-12-01 17:49:17,587 [WARNING] telethon.network.mtprotosender: Attempt 3 at connecting failed: TimeoutError: 
+2025-12-01 17:49:28,595 [WARNING] telethon.network.mtprotosender: Attempt 4 at connecting failed: TimeoutError: 
+2025-12-01 17:49:39,617 [WARNING] telethon.network.mtprotosender: Attempt 5 at connecting failed: TimeoutError: 
+2025-12-01 17:49:50,647 [WARNING] telethon.network.mtprotosender: Attempt 6 at connecting failed: TimeoutError: 
+2025-12-01 17:49:51,654 [WARNING] mgrbot: Worker +79193475570 not started yet: Connection to Telegram failed 5 time(s)
+2025-12-01 17:49:51,655 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:49:52,696 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:49:52,924 [INFO] telethon.network.mtprotosender: Connecting to 149.154.167.51:443/_ThreadedPySocks...
+2025-12-01 17:49:52,973 [INFO] telethon.network.mtprotosender: Connection to 149.154.167.51:443/_ThreadedPySocks complete!
+2025-12-01 17:49:53,428 [INFO] mgrbot: [+79882124542] started on None; device=iPhone 12
+2025-12-01 17:49:53,428 [INFO] mgrbot: Startup notification suppressed to avoid spamming users.
+2025-12-01 18:04:53,329 [INFO] telethon.client.updates: Got difference for account updates

@@ -111,7 +111,7 @@ API_KEYS = [
     {"api_id": 20149796, "api_hash": "ece55838826c41f32c4ccf4cbe74eee4"},
 ]
 
-BOT_TOKEN = "8419882268:AAGFE8VMR8JjQAUqAZS5XUHELZe_KbJG3dk"   # токен бота от @BotFather
+BOT_TOKEN = "8235242869:AAGK7AA4c2whj0AuqRtnNTWa_1zTSzU4Wtk"   # токен бота от @BotFather
 # Имя пользователя бота устанавливается во время запуска через get_me().
 BOT_USERNAME: Optional[str] = None
 # Изначальные супер-администраторы, которые могут выдавать доступ другим пользователям
@@ -5074,7 +5074,8 @@ async def on_cb(ev):
 
         pr = pending_ai_replies.get(task_id)
         if not pr:
-            await answer_callback(ev, "Заявка уже обработана или устарела", alert=True)
+            log.debug("AI pick callback for unknown/expired task_id: %s", task_id)
+            await answer_callback(ev)  # Молча отвечаем, не показывая ошибку
             return
 
         try:
@@ -5085,6 +5086,11 @@ async def on_cb(ev):
 
         if not pr.suggested_variants or idx < 0 or idx >= len(pr.suggested_variants):
             await answer_callback(ev, "Вариант недоступен", alert=True)
+            return
+
+        # Если вариант уже выбран и это тот же вариант, просто отвечаем
+        if pr.chosen_index == idx:
+            await answer_callback(ev)
             return
 
         pr.chosen_index = idx
