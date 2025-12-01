@@ -1822,7 +1822,10 @@ def build_asset_keyboard(
 
 
 def build_reply_prompt(ctx_info: Dict[str, Any], mode: str) -> str:
-    hint_suffix = " (будет отправлено как reply)." if ctx_info.get("msg_id") else "."
+    if mode == "reply" and ctx_info.get("msg_id"):
+        hint_suffix = " (будет отправлено как reply)."
+    else:
+        hint_suffix = " (будет отправлено как обычное сообщение)."
     return (
         f"Ответ для {ctx_info['phone']} (chat_id {ctx_info['chat_id']}): "
         f"пришли текст сообщения{hint_suffix}\n"
@@ -1839,12 +1842,16 @@ def build_reply_options_keyboard(ctx: str, mode: str) -> List[List[Button]]:
     normal_label = ("✅ " if current_mode == "normal" else "") + "✉️ Ответить"
     reply_label = ("✅ " if current_mode == "reply" else "") + "↩️ Реплай"
 
-    rows: List[List[Button]] = [
-        [
-            _reply_mode_button(normal_label, ctx, "normal"),
-            _reply_mode_button(reply_label, ctx, "reply"),
-        ]
-    ]
+    rows: List[List[Button]] = []
+    if current_mode == "normal":
+        rows.append([_reply_mode_button(normal_label, ctx, "normal")])
+    else:
+        rows.append(
+            [
+                _reply_mode_button(normal_label, ctx, "normal"),
+                _reply_mode_button(reply_label, ctx, "reply"),
+            ]
+        )
 
     rows.extend(_library_inline_rows())
     if mode == "reply":
@@ -5067,7 +5074,8 @@ async def on_cb(ev):
         # ====== AI автоответы (выбор варианта / отправка / редактирование) ======
     if data.startswith("ai_pick:"):
         try:
-            _, task_id, idx_str = data.split(":", 2)
+            _, rest = data.split(":", 1)
+            task_id, idx_str = rest.rsplit(":", 1)
         except ValueError:
             await answer_callback(ev, "Некорректные данные кнопки", alert=True)
             return
@@ -6119,7 +6127,7 @@ async def on_cb(ev):
         if not worker:
             await answer_callback(ev, "Аккаунт недоступен", alert=True)
             return
-        reply_to_msg_id = ctx_info.get("msg_id")
+        reply_to_msg_id = ctx_info.get("msg_id") if mode == "reply" else None
         try:
             sent = await worker.send_voice(
                 ctx_info["chat_id"],
@@ -6184,7 +6192,7 @@ async def on_cb(ev):
         if not worker:
             await answer_callback(ev, "Аккаунт недоступен", alert=True)
             return
-        reply_to_msg_id = ctx_info.get("msg_id")
+        reply_to_msg_id = ctx_info.get("msg_id") if mode == "reply" else None
         try:
             sent = await worker.send_sticker(
                 ctx_info["chat_id"],
@@ -6247,7 +6255,7 @@ async def on_cb(ev):
         if not worker:
             await answer_callback(ev, "Аккаунт недоступен", alert=True)
             return
-        reply_to_msg_id = ctx_info.get("msg_id")
+        reply_to_msg_id = ctx_info.get("msg_id") if mode == "reply" else None
         try:
             sent = await worker.send_video_note(
                 ctx_info["chat_id"],
@@ -6722,7 +6730,8 @@ async def on_text(ev):
         if not worker:
             await ev.reply("Аккаунт недоступен.")
             return
-        reply_to_msg_id = ctx.get("msg_id")
+        mode = waiting.get("mode", "normal")
+        reply_to_msg_id = ctx.get("msg_id") if mode == "reply" else None
         try:
             sent = await worker.send_outgoing(
                 ctx["chat_id"],
