@@ -1102,7 +1102,7 @@ def _prepare_reply_asset_menu(owner_id: int, file_type: str) -> Optional[Tuple[L
 
 
 async def _open_reply_asset_menu(
-    admin_id: int, ctx: str, mode: str, file_type: str
+    admin_id: int, ctx: str, mode: Optional[str], file_type: str, page: int = 0
 ) -> Optional[str]:
     ctx_info = get_reply_context_for_admin(ctx, admin_id)
     if not ctx_info:
@@ -1114,10 +1114,11 @@ async def _open_reply_asset_menu(
     files, empty_text, title, prefix = menu
     if not files:
         return empty_text
+    buttons = build_asset_keyboard(files, file_type, prefix, ctx, mode, page=page)
     await show_interactive_message(
         admin_id,
         title,
-        buttons=build_asset_keyboard(files, prefix, ctx, mode),
+        buttons=buttons,
         replace=True,
     )
     return None
@@ -1807,16 +1808,40 @@ def build_file_delete_keyboard(
 
 def build_asset_keyboard(
     files: List[str],
+    file_type: str,
     prefix: str,
     ctx: str,
     mode: Optional[str] = None,
+    page: int = 0,
 ) -> List[List[Button]]:
+    page_items, current_page, total_pages, _ = paginate_list(files, page)
     rows: List[List[Button]] = []
-    for idx, path in enumerate(files):
+    base_index = current_page * ITEMS_PER_PAGE
+    for offset, path in enumerate(page_items):
         base = os.path.splitext(os.path.basename(path))[0]
         title = base if len(base) <= ASSET_TITLE_MAX else base[: ASSET_TITLE_MAX - 1] + "…"
+        idx = base_index + offset
         payload = f"{prefix}:{ctx}:{idx}" if mode is None else f"{prefix}:{ctx}:{mode}:{idx}"
         rows.append([Button.inline(title, payload.encode())])
+    if total_pages > 1:
+        mode_token = mode or ""
+        nav: List[Button] = []
+        if current_page > 0:
+            nav.append(
+                Button.inline(
+                    "◀️",
+                    f"asset_page:{file_type}:{ctx}:{mode_token}:{current_page - 1}".encode(),
+                )
+            )
+        nav.append(Button.inline(f"{current_page + 1}/{total_pages}", b"noop"))
+        if current_page < total_pages - 1:
+            nav.append(
+                Button.inline(
+                    "▶️",
+                    f"asset_page:{file_type}:{ctx}:{mode_token}:{current_page + 1}".encode(),
+                )
+            )
+        rows.append(nav)
     rows.append([Button.inline("⬅️ Закрыть", b"asset_close")])
     return rows
 
@@ -6122,7 +6147,7 @@ async def on_cb(ev):
         await show_interactive_message(
             admin_id,
             title,
-            buttons=build_asset_keyboard(files, prefix, ctx, mode),
+            buttons=build_asset_keyboard(files, file_type, prefix, ctx, mode),
             replace=True,
         )
         return
@@ -6438,6 +6463,26 @@ async def on_cb(ev):
             "🗑 Сообщение стерто для обеих сторон.",
         )
         return
+    if data.startswith("asset_page:"):
+        parts = data.split(":", 4)
+        if len(parts) != 5:
+            await answer_callback(ev, "Некорректные данные", alert=True)
+            return
+        _, file_type, ctx, mode_token, page_str = parts
+        try:
+            page = int(page_str)
+        except ValueError:
+            await answer_callback(ev, "Некорректные данные", alert=True)
+            return
+        mode = mode_token if mode_token in {"normal", "reply"} else None
+        await answer_callback(ev)
+        error = await _open_reply_asset_menu(
+            admin_id, ctx, mode, file_type, page=page
+        )
+        if error:
+            await send_temporary_message(admin_id, f"❌ {error}")
+        return
+
     if data == "asset_close":
         await answer_callback(ev)
         return
