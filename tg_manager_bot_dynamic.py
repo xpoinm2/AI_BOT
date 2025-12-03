@@ -170,7 +170,7 @@ STICKERS_DIR = os.path.join(LIBRARY_DIR, "stickers")
 PROXIES_DIR = os.path.join(LIBRARY_DIR, "proxies")
 TEXT_EXTENSIONS = {".txt", ".md"}
 VOICE_EXTENSIONS = {".ogg", ".oga", ".mp3"}
-VIDEO_EXTENSIONS = {".mp4", ".mov", ".webm"}
+VIDEO_EXTENSIONS = {".mp4", ".mov", ".webm", ".jpg", ".jpeg", ".png"}
 STICKER_EXTENSIONS = {".webp", ".tgs"}
 for _dir in (LIBRARY_DIR, PASTES_DIR, VOICES_DIR, VIDEO_DIR, STICKERS_DIR, PROXIES_DIR):
     os.makedirs(_dir, exist_ok=True)
@@ -856,7 +856,7 @@ def list_sticker_templates(owner_id: int) -> List[str]:
 FILE_TYPE_LABELS = {
     "paste": "Пасты",
     "voice": "Голосовые",
-    "video": "Кружки",
+    "video": "Медиа",
     "sticker": "Стикеры",
 }
 
@@ -895,7 +895,7 @@ REPLY_TEMPLATE_META: Dict[str, Dict[str, Any]] = {
     "video": {
         "emoji": "📹",
         "label": FILE_TYPE_LABELS["video"],
-        "title": "📹 Выбери кружок для отправки:",
+        "title": "📹 Выбери медиа для отправки:",
         "empty": "Папка с кружками пуста",
         "prefix": "video_send",
         "loader": list_video_templates,
@@ -1408,7 +1408,7 @@ def _build_files_main_menu() -> List[InlineArticle]:
         InlineArticle(
             id="files_add",
             title="➕ Добавить",
-            description="Добавить пасту, голосовое, кружок, стикер",
+            description="Добавить пасту, голосовое, медиа, стикер",
             text="Открываю меню добавления...",
             buttons=[
                 [Button.switch_inline(
@@ -1447,7 +1447,7 @@ def _build_files_add_menu() -> List[InlineArticle]:
     file_types = [
         ("paste", "📄 Пасты", "Добавить текстовую пасту"),
         ("voice", "🎙 Голосовые", "Добавить голосовое сообщение"),
-        ("video", "📹 Кружки", "Добавить видео-кружок"),
+        ("video", "📹 Медиа", "Добавить медиа"),
         ("sticker", "💟 Стикеры", "Добавить стикер"),
     ]
     
@@ -1477,7 +1477,7 @@ def _build_files_del_menu() -> List[InlineArticle]:
     file_types = [
         ("paste", "📄 Пасты", "Удалить текстовую пасту"),
         ("voice", "🎙 Голосовые", "Удалить голосовое сообщение"),
-        ("video", "📹 Кружки", "Удалить видео-кружок"),
+        ("video", "📹 Медиа", "Удалить медиа"),
         ("sticker", "💟 Стикеры", "Удалить стикер"),
     ]
     
@@ -2138,7 +2138,7 @@ def _format_filesize(size: Optional[int]) -> str:
 def _describe_media(event: Any) -> Tuple[str, str]:
     checks: List[Tuple[str, str, str]] = [
         ("voice", "voice", "Голосовое сообщение"),
-        ("video_note", "video_note", "Видеосообщение (кружок)"),
+        ("video_note", "video_note", "Видеосообщение (кружок/медиа)"),
         ("video", "video", "Видео"),
         ("audio", "audio", "Аудио"),
         ("photo", "photo", "Фотография"),
@@ -2298,7 +2298,7 @@ def _library_inline_rows() -> List[List[Button]]:
             library_inline_button("voice", "🎙 Голосовые ↗"),
         ],
         [
-            library_inline_button("video", "📹 Кружки ↗"),
+            library_inline_button("video", "📹 Медиа ↗"),
             library_inline_button("sticker", "💟 Стикеры ↗"),
         ],
     ]
@@ -3487,7 +3487,67 @@ class AccountWorker:
             await self._handle_account_disabled("frozen", e)
             raise RuntimeError("Аккаунт заморожен Telegram")
         return sent
-    
+
+    async def send_media(
+        self,
+        chat_id: int,
+        file_path: str,
+        peer: Optional[Any] = None,
+        reply_to_msg_id: Optional[int] = None,
+        mark_read_msg_id: Optional[int] = None,
+    ):
+        import os
+        client = await self._ensure_client()
+        if not await client.is_user_authorized():
+            raise RuntimeError("Аккаунт не авторизован")
+        if peer is None:
+            try:
+                peer = await client.get_input_entity(chat_id)
+            except Exception:
+                peer = chat_id
+
+        # Определяем тип файла по расширению
+        _, ext = os.path.splitext(file_path.lower())
+        is_photo = ext in {".jpg", ".jpeg", ".png"}
+        is_video = ext in {".mp4", ".mov", ".webm"}
+
+        try:
+            if is_photo:
+                # Отправляем как фото
+                sent = await client.send_file(
+                    peer,
+                    file_path,
+                    reply_to=reply_to_msg_id,
+                )
+            elif is_video:
+                # Отправляем как обычное видео (не кружок)
+                sent = await client.send_file(
+                    peer,
+                    file_path,
+                    reply_to=reply_to_msg_id,
+                    supports_streaming=True,
+                )
+            else:
+                # Для видео-кружков используем video_note=True
+                await self._simulate_round_recording(client, peer, file_path)
+                sent = await client.send_file(
+                    peer,
+                    file_path,
+                    video_note=True,
+                    reply_to=reply_to_msg_id,
+                )
+
+            if mark_read_msg_id is not None:
+                with contextlib.suppress(Exception):
+                    await client.send_read_acknowledge(peer, max_id=mark_read_msg_id)
+        except (UserDeactivatedBanError, PhoneNumberBannedError) as e:
+            await self._handle_account_disabled("banned", e)
+            raise RuntimeError("Аккаунт заблокирован Telegram")
+        except UserDeactivatedError as e:
+            await self._handle_account_disabled("frozen", e)
+            raise RuntimeError("Аккаунт заморожен Telegram")
+        return sent
+
     async def edit_message(
         self,
         chat_id: int,
@@ -4566,7 +4626,7 @@ def files_add_menu() -> List[List[Button]]:
             Button.inline("🎙 Голосовые", b"files_voice"),
         ],
         [
-            Button.inline("📹 Кружки", b"files_video"),
+            Button.inline("📹 Медиа", b"files_video"),
             Button.inline("💟 Стикеры", b"files_sticker"),
         ],
         [Button.inline("⬅️ Назад", b"back")],
@@ -4580,7 +4640,7 @@ def files_delete_menu() -> List[List[Button]]:
             Button.switch_inline("🎙 Голосовые", query="del_voice_list", same_peer=True),
         ],
         [
-            Button.switch_inline("📹 Кружки", query="del_video_list", same_peer=True),
+            Button.switch_inline("📹 Медиа", query="del_video_list", same_peer=True),
             Button.switch_inline("💟 Стикеры", query="del_sticker_list", same_peer=True),
         ],
         [Button.inline("⬅️ Назад", b"back")],
@@ -4779,7 +4839,7 @@ async def on_inline_query(ev):
         file_types = [
             ("paste", "📄 Пасты", "Добавить текстовую пасту"),
             ("voice", "🎙 Голосовые", "Добавить голосовое сообщение"),
-            ("video", "📹 Кружки", "Добавить видео-кружок"),
+            ("video", "📹 Медиа", "Добавить медиа"),
             ("sticker", "💟 Стикеры", "Добавить стикер"),
         ]
         inline_results = []
@@ -4808,7 +4868,7 @@ async def on_inline_query(ev):
         file_types = [
             ("paste", "📄 Пасты", "Удалить текстовые пасты"),
             ("voice", "🎙 Голосовые", "Удалить голосовые"),
-            ("video", "📹 Кружки", "Удалить кружки"),
+            ("video", "📹 Медиа", "Удалить медиа"),
             ("sticker", "💟 Стикеры", "Удалить стикеры"),
         ]
         inline_results = []
@@ -5543,7 +5603,7 @@ async def on_cb(ev):
     if data == "files_video":
         pending[admin_id] = {"flow": "file", "file_type": "video", "step": "name"}
         await answer_callback(ev)
-        await edit_or_send_message(ev, admin_id, "Введите название кружка:")
+        await edit_or_send_message(ev, admin_id, "Введите название медиа:")
         return
 
     if data == "files_sticker":
@@ -6303,7 +6363,7 @@ async def on_cb(ev):
             return
         reply_to_msg_id = ctx_info.get("msg_id") if mode == "reply" else None
         try:
-            sent = await worker.send_video_note(
+            sent = await worker.send_media(
                 ctx_info["chat_id"],
                 file_path,
                 ctx_info.get("peer"),
@@ -6313,7 +6373,7 @@ async def on_cb(ev):
         except Exception as e:
             await answer_callback(ev, f"Ошибка отправки: {e}", alert=True)
             return
-        await answer_callback(ev, "✅ Кружок отправлен")
+        await answer_callback(ev, "✅ Медиа отправлено")
         token = register_outgoing_action(
             admin_id,
             phone=ctx_info["phone"],
@@ -6330,7 +6390,7 @@ async def on_cb(ev):
         )
         await bot_client.send_message(
             admin_id,
-            "✅ Кружок отправлен собеседнику.",
+            "✅ Медиа отправлено собеседнику.",
             buttons=buttons,
         )
         return
@@ -6828,7 +6888,7 @@ async def on_text(ev):
                         "Пришлите голосовое сообщение или перешлите готовое."
                     )
                 elif file_type == "video":
-                    await ev.reply("Пришлите кружок (видео-сообщение).")
+                    await ev.reply("Пришлите медиа (кружок, видео или фото в форматах jpg, jpeg, png).")
                 elif file_type == "sticker":
                     await ev.reply("Пришлите стикер (поддерживаются .webp и .tgs).")
                 else:
@@ -6874,20 +6934,22 @@ async def on_text(ev):
                     return
 
                 if file_type == "video":
-                    if not (getattr(msg, "video_note", None) or getattr(msg, "video", None)):
-                        await ev.reply("Ожидается кружок (видео-сообщение).")
+                    if not (getattr(msg, "video_note", None) or getattr(msg, "video", None) or getattr(msg, "photo", None)):
+                        await ev.reply("Ожидается медиа (кружок, видео или фото в форматах jpg, jpeg, png).")
                         return
                     ext = ".mp4"
                     if msg.file and msg.file.ext:
                         ext = msg.file.ext
+                    elif getattr(msg, "photo", None):
+                        ext = ".jpg"  # Для фото используем jpg по умолчанию
                     file_path = os.path.join(user_library_dir(admin_id, "video"), f"{name}{ext}")
                     try:
                         await msg.download_media(file=file_path)
                     except Exception as e:
-                        await ev.reply(f"Не удалось сохранить кружок: {e}")
+                        await ev.reply(f"Не удалось сохранить медиа: {e}")
                         return
                     pending.pop(admin_id, None)
-                    await ev.reply(f"✅ Кружок сохранён как {os.path.basename(file_path)}")
+                    await ev.reply(f"✅ Медиа сохранено как {os.path.basename(file_path)}")
                     return
 
                 if file_type == "sticker":
