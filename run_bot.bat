@@ -74,7 +74,6 @@ REM --- Запуск бота ---
 echo.
 :: 🔑 вставь сюда свой ключ OpenAI (начинается с "sk-")
 set OPENAI_API_KEY=
-echo Запуск бота...
 python -X dev tg_manager_bot_dynamic.py
 set "EXIT_CODE=%ERRORLEVEL%"
 
